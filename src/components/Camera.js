@@ -9,8 +9,8 @@ export function Camera() {
     3000
   );
   camera.up.set(0, 0, 1);
-  camera.position.set(180, -250, 280);
-  camera.lookAt(25, 25, 0);
+  camera.position.set(180, -250, 230);
+  camera.lookAt(0, 25, 0);
 
   return camera;
 }
