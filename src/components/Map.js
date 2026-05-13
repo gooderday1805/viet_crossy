@@ -4,6 +4,7 @@ import { Road } from "./Road";
 import { Tree } from "./Tree";
 import { Car } from "./Car";
 import { Truck } from "./Truck";
+import { createPagodaArea } from "./PagodaArea";
 
 export const metadata = [
   {
@@ -46,7 +47,7 @@ export const metadata = [
   {
     type: "car",
     direction: false,
-    speed: 188,
+    speed: 165,
     vehicles: [
       { initialTileIndex: -4, color: 0xbdb638 },
       { initialTileIndex: -1, color: 0x78b14b },
@@ -62,15 +63,41 @@ export const metadata = [
       { tileIndex: 5, height: 30 },
     ],
   },
+  {
+    type: "car",
+    direction: false,
+    speed:220,
+    vehicles: [
+      { initialTileIndex: -4, color: 0xbdb638 },
+      { initialTileIndex: -1, color: 0x78b14b },
+      { initialTileIndex: 4, color: 0xa52523 },
+    ],
+  },
+  {
+    type: "forest",
+    trees: [
+      { tileIndex: -7, height: 30 },
+      { tileIndex: -4, height: 50 },
+      { tileIndex: 1, height: 30 },
+      { tileIndex: 3, height: 30 },
+      { tileIndex: 8, height: 30 },
+    ],
+  },
 ];
 
 export const map = new THREE.Group();
 
 export function initializeMap() {
-  for (let rowIndex = 0; rowIndex > -3; rowIndex--) {
+  for (let rowIndex = 0; rowIndex >= -8; rowIndex--) {
     const grass = Grass(rowIndex);
     map.add(grass);
   }
+
+  // Define Pagoda
+  const pagoda = createPagodaArea();
+  pagoda.position.y = 0;
+  map.add(pagoda);
+
   addRows();
 }
 
