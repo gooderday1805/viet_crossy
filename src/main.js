@@ -6,6 +6,8 @@ import { map, initializeMap } from "./components/Map";
 import { tilesPerRow, tileSize } from "./constants";
 import { DirectionalLight } from "./components/DirectionalLight";
 import { animateVehicles } from "./animateVehicles";
+import { animatePlayer } from "./animatePlayer";
+import "./collectUserInput";
 import "./style.css";
 
 const scene = new THREE.Scene();
@@ -68,6 +70,7 @@ renderer.setAnimationLoop(animate);
 
 function animate() {
   animateVehicles();
+  animatePlayer();
 
   renderer.render(scene, camera);
 }

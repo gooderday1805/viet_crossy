@@ -88,7 +88,8 @@ export const metadata = [
 export const map = new THREE.Group();
 
 export function initializeMap() {
-  for (let rowIndex = 0; rowIndex >= -8; rowIndex--) {
+  // Mở rộng grass đến row -13 để phủ toàn bộ khu vực chùa mở rộng
+  for (let rowIndex = 0; rowIndex >= -13; rowIndex--) {
     const grass = Grass(rowIndex);
     map.add(grass);
   }

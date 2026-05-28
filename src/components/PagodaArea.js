@@ -1,251 +1,292 @@
 import * as THREE from "three";
 import { tileSize } from "../constants";
 
+// Các bậc đá an toàn để nhảy qua hồ sen.
+// Người chơi phải đứng đúng các ô này — rơi xuống hồ = thua.
+// Pattern zigzag: 0 → -1 → +1 → -1 → +1 → 0 (trái-phải xen kẽ)
 export const safePathTiles = [
-  { xIndex:  0, yIndex: -4 }, // Bước vào hồ từ phía Cổng Tam Quan
-  { xIndex: -1, yIndex: -5 }, // Lệch trái
-  { xIndex: -1, yIndex: -5 }, // Giữ nguyên (trùng, dùng cho logic nhảy đôi)
-  { xIndex:  0, yIndex: -6 }, // Về giữa
-  { xIndex:  1, yIndex: -7 }, // Lệch phải, tiến vào Chùa
+  { xIndex:  0, yIndex:  -4 }, // Bậc đầu: bước xuống hồ từ sân giữa
+  { xIndex: -1, yIndex:  -5 }, // Bậc 1: lệch trái một ô
+  { xIndex:  1, yIndex:  -6 }, // Bậc 2: lệch phải một ô
+  { xIndex: -1, yIndex:  -7 }, // Bậc 3: lệch trái một ô
+  { xIndex:  1, yIndex:  -8 }, // Bậc 4: lệch phải một ô
+  { xIndex:  0, yIndex:  -9 }, // Bậc cuối: về giữa, ra khỏi hồ
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER: tạo BoxGeometry + MeshLambertMaterial và thêm vào parent group.
+//
+// BoxGeometry(w, d, h):
+//   w = chiều ngang (X), d = chiều sâu (Y), h = chiều cao (Z)
+//   → Tạo AABB (Axis-Aligned Bounding Box) gồm 12 tam giác (6 mặt × 2).
+//
+// MeshLambertMaterial: mô hình tô bóng Lambert khuếch tán đơn giản.
+//   Phản xạ ánh sáng tỷ lệ với cos(θ) — không có thành phần specular (gương).
+//   flatShading = true: dùng 1 normal vector cho cả mặt thay vì nội suy per-vertex
+//   → tạo phong cách "lowpoly" / faceted đặc trưng.
+// ─────────────────────────────────────────────────────────────────────────────
 function box(parent, w, d, h, color, pos) {
   const mat = new THREE.MeshLambertMaterial({ color, flatShading: true });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), mat);
   mesh.position.set(pos[0], pos[1], pos[2]);
+  // castShadow / receiveShadow: tham gia vào shadow map của DirectionalLight
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 }
 
+// Tạo texture biển tên bằng Canvas 2D API — không cần file ảnh ngoài.
+// THREE.CanvasTexture bọc HTMLCanvasElement thành texture GPU trực tiếp.
 function createSignTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 128;
   const ctx = canvas.getContext("2d");
-
   ctx.fillStyle = "#8B0000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   ctx.strokeStyle = "#FFD700";
   ctx.lineWidth = 10;
   ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
-
   ctx.fillStyle = "#FFD700";
   ctx.font = "bold 58px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("CHÙA MỘT CỘT", canvas.width / 2, canvas.height / 2 + 4);
-  
   return new THREE.CanvasTexture(canvas);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// createPagodaArea(): trả về THREE.Group chứa toàn bộ khu vực chùa.
+//
+// Hệ tọa độ Z (chiều cao):
+//   Z = 0   → mặt đất
+//   Z = 1.5 → mặt cỏ (grass foundation cao 3, center = 0)
+//   Z = 5   → mặt đường đá (stone path)
+//   Z = 6   → mặt nước hồ (water top surface)
+//   Z = 11  → mặt bệ bậc nhảy (jumping platform surface)
+// ─────────────────────────────────────────────────────────────────────────────
 export function createPagodaArea() {
-  const pagodaGroup = new THREE.Group();
+  // THREE.Group: nút trong scene graph, gom nhiều mesh lại để transform chung.
+  const g = new THREE.Group();
 
+  // ── 1. ĐƯỜNG ĐÁ DẪN VÀO (Stone Approach Path: rows -1 → -3) ─────────────
   for (let row = -1; row >= -3; row--) {
-    const worldY = row * tileSize;
-    // Con đường đá (stone path): dẫn từ điểm xuất phát vào cổng chùa
-    box(pagodaGroup, 24, tileSize - 2, 2, 0xd5d8dc, [0, worldY, 4.5]);
+    box(g, 34, tileSize, 3, 0xd5d8dc, [0, row * tileSize, 4.5]);
   }
 
-  const gateY = -84; // world Y của cổng
+  // ── 2. CỔ TAM QUAN (Triple Archway Gate) ─────────────────────────────────
+  // Tam Quan = cổng chính khuôn viên chùa Việt Nam, gồm 3 lối: giữa lớn + 2 bên nhỏ.
+  const gateY = -2 * tileSize; // = -84 (row -2)
+  const CZ    = 10;            // Z đỉnh nền móng (foundation top)
+  const CH    = 82;            // chiều cao cổng giữa (Center Gate Height)
+  const SH    = 60;            // chiều cao cổng phụ (Side Gate Height)
 
-  // --- Nền móng đá (Stone Foundation) ---
-  box(pagodaGroup, 336, 16, 6, 0x9e9e9e, [0, gateY, 3]);
+  // Nền móng đá chung (stone foundation) — đỡ toàn bộ Tam Quan
+  box(g, 410, 22, 10, 0x9e9e9e, [0, gateY, 5]);
 
-  // --- Cổng giữa (Center Archway) — cao ~55 đơn vị ---
-  // Hai cột đỏ sơn mài (8×8 mặt cắt), tường lintel màu kem, mái ngói đỏ
-  box(pagodaGroup,  8,  8, 55, 0x8b2500, [-22, gateY, 6 + 55 / 2]); // cột trái
-  box(pagodaGroup,  8,  8, 55, 0x8b2500, [+22, gateY, 6 + 55 / 2]); // cột phải
-  box(pagodaGroup, 36,  8, 14, 0xf5e0a0, [  0, gateY, 6 + 55 - 7]); // đỉnh tường lintel
-  box(pagodaGroup, 54, 12,  8, 0xc0392b, [  0, gateY, 6 + 55 + 4]); // thân mái
-  box(pagodaGroup, 58, 14,  4, 0x7d1e06, [  0, gateY, 6 + 55 + 10]); // gờ sống mái đậm
-  box(pagodaGroup,  6,  6,  5, 0xe6a817, [  0, gateY, 6 + 55 + 14]); // chóp vàng
+  // Cổng giữa (Center Archway) — cao 82 đơn vị tính từ đỉnh nền
+  box(g, 12, 12, CH, 0x8b2500, [-36, gateY, CZ + CH / 2]); // cột trái
+  box(g, 12, 12, CH, 0x8b2500, [+36, gateY, CZ + CH / 2]); // cột phải
+  box(g, 82, 12, 22, 0xf5e0a0, [  0, gateY, CZ + CH - 11]); // lintel ngang đỉnh
+  box(g, 98, 16, 16, 0xc0392b, [  0, gateY, CZ + CH + 8 ]); // thân mái ngói
+  box(g,106, 18,  7, 0x7d1e06, [  0, gateY, CZ + CH + 17]); // gờ sống mái đậm
+  box(g, 10, 10, 14, 0xe6a817, [  0, gateY, CZ + CH + 25]); // chóp vàng đỉnh
 
-  // --- Cổng phụ trái (Left Side Archway) — cao ~38 đơn vị ---
-  const lGateX = -90;
-  box(pagodaGroup,  8,  8, 38, 0x8b2500, [lGateX - 20, gateY, 6 + 38 / 2]);
-  box(pagodaGroup,  8,  8, 38, 0x8b2500, [lGateX + 20, gateY, 6 + 38 / 2]);
-  box(pagodaGroup, 32,  8, 10, 0xf5e0a0, [lGateX, gateY, 6 + 38 - 5]);
-  box(pagodaGroup, 46, 12,  7, 0xc0392b, [lGateX, gateY, 6 + 38 + 3]);
-  box(pagodaGroup, 50, 14,  3, 0x7d1e06, [lGateX, gateY, 6 + 38 + 8]);
-  box(pagodaGroup,  5,  5,  4, 0xe6a817, [lGateX, gateY, 6 + 38 + 11]);
-
-  // --- Cổng phụ phải (Right Side Archway) — cao ~38 đơn vị ---
-  const rGateX = +90;
-  box(pagodaGroup,  8,  8, 38, 0x8b2500, [rGateX - 20, gateY, 6 + 38 / 2]);
-  box(pagodaGroup,  8,  8, 38, 0x8b2500, [rGateX + 20, gateY, 6 + 38 / 2]);
-  box(pagodaGroup, 32,  8, 10, 0xf5e0a0, [rGateX, gateY, 6 + 38 - 5]);
-  box(pagodaGroup, 46, 12,  7, 0xc0392b, [rGateX, gateY, 6 + 38 + 3]);
-  box(pagodaGroup, 50, 14,  3, 0x7d1e06, [rGateX, gateY, 6 + 38 + 8]);
-  box(pagodaGroup,  5,  5,  4, 0xe6a817, [rGateX, gateY, 6 + 38 + 11]);
-
-  // --- Tường nối giữa các cổng (Wall Sections) ---
-  box(pagodaGroup, 28, 8, 20, 0xf5e0a0, [-45,  gateY, 6 + 10]); // nối giữa-trái
-  box(pagodaGroup, 28, 8, 20, 0xf5e0a0, [+45,  gateY, 6 + 10]); // nối giữa-phải
-  box(pagodaGroup, 24, 8, 20, 0xf5e0a0, [-145, gateY, 6 + 10]); // đầu hồi trái
-  box(pagodaGroup, 24, 8, 20, 0xf5e0a0, [+145, gateY, 6 + 10]); // đầu hồi phải
-
-  const screenY = -126;
-
-  // Bình phong — tường đứng trước sân chùa
-  box(pagodaGroup, 90,  8, 30, 0xf5e0a0, [  0, screenY, 15]); // thân tường
-  box(pagodaGroup, 98, 10,  5, 0xc0392b, [  0, screenY, 32]); // mái bình phong
-  box(pagodaGroup, 14,  8, 30, 0x9e9e9e, [-52, screenY, 15]); // trụ đầu hồi trái
-  box(pagodaGroup, 14,  8, 30, 0x9e9e9e, [+52, screenY, 15]); // trụ đầu hồi phải
-
-  [-80, +80].forEach(lpX => {
-    box(pagodaGroup,  8,  8,  4, 0x9e9e9e, [lpX, gateY,  2]);             // đế stone
-    box(pagodaGroup,  5,  5, 30, 0x9e9e9e, [lpX, gateY, 19]);             // thân cột (Z=4+15)
-    box(pagodaGroup, 12, 12,  3, 0x9e9e9e, [lpX, gateY, 35.5]);           // mũ cột (Z=4+30+1.5)
-    box(pagodaGroup,  9,  9, 10, 0xe74c3c, [lpX, gateY, 42]);             // đèn lồng đỏ (Z=4+30+3+5)
-    box(pagodaGroup,  5,  5,  4, 0xe6a817, [lpX, gateY, 49]);             // chóp vàng (Z=4+30+3+10+2)
+  // Cổng phụ trái + phải (Side Arches) × 2
+  [{ cx: -118 }, { cx: +118 }].forEach(({ cx }) => {
+    box(g, 10, 10, SH, 0x8b2500, [cx - 26, gateY, CZ + SH / 2]);
+    box(g, 10, 10, SH, 0x8b2500, [cx + 26, gateY, CZ + SH / 2]);
+    box(g, 60, 12, 16, 0xf5e0a0, [cx, gateY, CZ + SH - 8 ]);
+    box(g, 72, 14, 14, 0xc0392b, [cx, gateY, CZ + SH + 7 ]);
+    box(g, 78, 16,  6, 0x7d1e06, [cx, gateY, CZ + SH + 14]);
+    box(g,  8,  8,  9, 0xe6a817, [cx, gateY, CZ + SH + 19]);
   });
 
-  [-100, +100].forEach(tx => {
-    box(pagodaGroup, 12, 14, 25, 0x4e342e, [tx, screenY, 12.5]); // thân cây đậm
-    box(pagodaGroup, 35, 38, 30, 0x27ae60, [tx, screenY, 40]);    // tán lá xanh đậm
+  // Tường nối giữa các cổng (Connecting Wall Segments)
+  box(g, 38, 12, 30, 0xf5e0a0, [ -68, gateY, CZ + 15]); // giữa → trái
+  box(g, 38, 12, 30, 0xf5e0a0, [ +68, gateY, CZ + 15]); // giữa → phải
+  box(g, 44, 12, 30, 0xf5e0a0, [-168, gateY, CZ + 15]); // đầu hồi trái
+  box(g, 44, 12, 30, 0xf5e0a0, [+168, gateY, CZ + 15]); // đầu hồi phải
+
+  // Cột đèn lồng 2 bên cổng giữa (Lantern Posts)
+  [{ x: -88 }, { x: +88 }].forEach(({ x }) => {
+    box(g, 10, 10,  5, 0x9e9e9e, [x, gateY,  2.5]); // đế đá
+    box(g,  6,  6, 40, 0x9e9e9e, [x, gateY, 25  ]); // thân cột
+    box(g, 14, 14,  4, 0x9e9e9e, [x, gateY, 47  ]); // mũ cột
+    box(g, 11, 11, 16, 0xe74c3c, [x, gateY, 57  ]); // đèn lồng đỏ
+    box(g,  6,  6,  6, 0xe6a817, [x, gateY, 67  ]); // chóp vàng
   });
 
-  // =========================================================================
-  const pondCenterY = (-168 + -294) / 2; // = -231, tâm hồ theo Y
-  const pondLengthY = 4 * tileSize;       // 4 hàng × 42 = 168 đơn vị
-  const pondWidth   = 17 * tileSize;      // ~15 tiles rộng bản đồ
+  // Cây Bồ Đề cặp 1 — hai bên bình phong
+  [{ x: -120 }, { x: +120 }].forEach(({ x }) => {
+    box(g, 14, 16, 32, 0x4e342e, [x, screenY, 16]); // thân cây
+    box(g, 46, 50, 40, 0x27ae60, [x, screenY, 52]); // tán lá
+  });
+
+  // ── 4. SÂN CHÙA (Temple Courtyard: row -3.5, khoảng giữa bình phong và hồ)
+  box(g, 360, tileSize, 3, 0xcacfd2, [0, -3.5 * tileSize, 3.5]);
+
+  // ── 5. HỒ SEN + BẬC NHẢY (Lotus Pond: rows -4 → -9) ─────────────────────
+  // TRÒ CHƠI NHẢY BẬC: người chơi phải nhảy qua đúng các bệ đá (safePathTiles).
+  // Rơi xuống nước → game over.
+  //
+  // Mặt nước dùng transparent material (alpha blending):
+  //   opacity=0.88, depthWrite=false → tránh z-fighting với các mesh bậc đá bên trên.
+  const pondTopCenter    = -4 * tileSize; // = -168 (row -4)
+  const pondBottomCenter = -9 * tileSize; // = -378 (row -9)
+  const pondLen          = 6 * tileSize;  // = 252 (6 hàng × 42)
+  const pondCenterY      = (pondTopCenter + pondBottomCenter) / 2; // = -273
 
   const waterMat = new THREE.MeshLambertMaterial({
-    color: 0x2471a3,     // xanh dương nước sâu
+    color: 0x1a5276,    // xanh dương sâu — nước hồ nguy hiểm
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.88,
     flatShading: true,
-    depthWrite: false,   // tránh z-fighting với bệ đá phía trên
+    depthWrite: false,  // không ghi depth buffer → mesh bậc đá phía trên không bị clip
   });
   const waterMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(pondWidth, pondLengthY, 4),
+    new THREE.BoxGeometry(17 * tileSize, pondLen, 6),
     waterMat
   );
-  waterMesh.position.set(0, pondCenterY, 2); // Z=2 = mặt nước
+  waterMesh.position.set(0, pondCenterY, 3); // Z=3 → mặt nước = Z=6
   waterMesh.receiveShadow = true;
-  pagodaGroup.add(waterMesh);
+  g.add(waterMesh);
 
-  // --- Lá sen và hoa sen trang trí (Lotus Leaves & Flowers) ---
-  // Đặt rải rác ở vùng không có bệ đá để không cản lối đi an toàn
-  const lotusDecorations = [
-    { x:  3, y: -5   }, { x: -3, y: -5.5 },
-    { x:  2, y: -6   }, { x: -2, y: -4.5 },
-    { x:  4, y: -6.5 }, { x: -4, y: -5   },
-  ];
-  lotusDecorations.forEach(({ x, y }) => {
-    const wx = x * tileSize;
-    const wy = y * tileSize;
-    box(pagodaGroup, 16, 16, 1, 0x27ae60, [wx, wy, 4.5]); // lá sen phẳng
-    box(pagodaGroup,  8,  8, 5, 0xf1948a, [wx, wy, 7]);   // hoa sen nhô lên
-  });
-
-
+  // Bệ bậc nhảy (Jumping Stone Platforms)
+  // Kích thước 28×28 (= tileSize-14) → khoảng hở hai bên = 7 đơn vị.
+  // Người chơi phải nhảy đúng ô — trượt sang ô trống là rơi xuống hồ.
+  const STEP = tileSize - 14; // = 28 đơn vị
   safePathTiles.forEach(({ xIndex, yIndex }) => {
+    // Đế bậc (đá nền dày, xám đậm)
     box(
-      pagodaGroup,
-      tileSize - 4, tileSize - 4, 4,
-      0x9e9e9e,
-      [xIndex * tileSize, yIndex * tileSize, 6]
+      g,
+      STEP, STEP, 6,
+      0x717d7e,
+      [xIndex * tileSize, yIndex * tileSize, 9]  // Z center=9 → đỉnh bậc = Z=12
+    );
+    // Mặt bậc (màu sáng hơn để phân biệt rõ với nước)
+    box(
+      g,
+      STEP - 4, STEP - 4, 2,
+      0xa9cce3,
+      [xIndex * tileSize, yIndex * tileSize, 12.5]
     );
   });
 
-  // --- Cây Bồ Đề cặp 2 (gần row -6) ---
-  [-100, +100].forEach(tx => {
-    box(pagodaGroup, 12, 14, 25, 0x4e342e, [tx, -6 * tileSize, 12.5]);
-    box(pagodaGroup, 35, 38, 30, 0x27ae60, [tx, -6 * tileSize, 40]);
+  // Lá sen & hoa sen trang trí (đặt ở ô KHÔNG có bậc đá — tránh chắn lối)
+  const lotusSpots = [
+    { xi:  3, yi: -5 }, { xi: -3, yi: -5 },
+    { xi:  3, yi: -6 }, { xi: -3, yi: -7 },
+    { xi:  2, yi: -8 }, { xi: -3, yi: -8 },
+    { xi:  3, yi: -9 }, { xi: -2, yi: -4 },
+  ];
+  lotusSpots.forEach(({ xi, yi }) => {
+    box(g, 20, 20,  1, 0x1e8449, [xi * tileSize, yi * tileSize, 6.5]); // lá sen phẳng
+    box(g, 10, 10,  7, 0xf1948a, [xi * tileSize, yi * tileSize, 10  ]); // hoa sen nhô lên
   });
- 
-  const shrineGroup = new THREE.Group();
-  shrineGroup.position.set(0, -336, 0); // đặt sub-group tại world Y=-336
-  pagodaGroup.add(shrineGroup);
 
-  // --- Hồ nhỏ xung quanh cột (Mini Pond) ---
-  const miniPondMat = new THREE.MeshLambertMaterial({
-    color: 0x2471a3,
+  // Cây Bồ Đề cặp 2 — hai bên hồ, hàng -6 (giữa hồ)
+  [{ x: -165 }, { x: +165 }].forEach(({ x }) => {
+    box(g, 14, 16, 32, 0x4e342e, [x, -6 * tileSize, 16]);
+    box(g, 46, 50, 40, 0x27ae60, [x, -6 * tileSize, 52]);
+  });
+
+  // ── 6. LỐI RA HỒ (Approach strip: row -10) ───────────────────────────────
+  box(g, 300, tileSize, 3, 0xcacfd2, [0, -10 * tileSize, 3.5]);
+
+  // ── 7. CHÙA MỘT CỘT (Single Pillar Pagoda) ───────────────────────────────
+  // Biểu tượng kiến trúc Phật giáo Việt Nam: 1 cột đá đỡ gian thờ → như hoa sen vươn khỏi hồ.
+  // Dùng THREE.Group con (shrineGroup) để tạo local coordinate system:
+  // tất cả tọa độ bên trong tính từ tâm nhóm (shrineGroup.position).
+  const shrineGroup = new THREE.Group();
+  shrineGroup.position.set(0, -11 * tileSize, 0); // world Y = -462
+  g.add(shrineGroup);
+
+  // Hồ nhỏ quanh chân cột (Mini Pond)
+  const miniMat = new THREE.MeshLambertMaterial({
+    color: 0x1a5276,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.88,
     flatShading: true,
     depthWrite: false,
   });
-  const miniPondMesh = new THREE.Mesh(new THREE.BoxGeometry(90, 90, 5), miniPondMat);
-  miniPondMesh.position.set(0, 0, 2.5); // Z=2.5, tâm theo chiều cao
-  miniPondMesh.receiveShadow = true;
-  shrineGroup.add(miniPondMesh);
+  const miniPond = new THREE.Mesh(new THREE.BoxGeometry(130, 130, 7), miniMat);
+  miniPond.position.set(0, 0, 3.5);
+  miniPond.receiveShadow = true;
+  shrineGroup.add(miniPond);
 
-  // --- Đế đá trong hồ (Stone Base in Pond) ---
-  box(shrineGroup, 20, 20,  4, 0x9e9e9e, [0, 0,   2]); // Z center=2
+  // Bệ đá trong hồ (Stone Base)
+  box(shrineGroup, 30, 30,  6, 0x9e9e9e, [0, 0,  3]);
 
-  // --- Cột đá duy nhất (Single Stone Pillar) ---
-  // Từ Z=0 (mặt đất) đến Z=50 — đặc trưng nổi bật nhất của Chùa Một Cột.
-  box(shrineGroup, 14, 14, 50, 0x9e9e9e, [0, 0,  25]); // Z center=25
+  // Cột đá duy nhất (Single Stone Pillar) — "một cột" trong tên chùa
+  // Đây là cấu kiện chịu lực duy nhất — toàn bộ tải trọng gian thờ dồn vào 1 cột.
+  box(shrineGroup, 22, 22, 72, 0x9e9e9e, [0, 0, 36]); // Z center=36 → từ Z=0 đến Z=72
 
-  // --- Sàn gỗ trên cột (Wooden Platform) ---
-  box(shrineGroup, 46, 46,  4, 0x6d4c41, [0, 0,  52]); // Z=50(đỉnh cột)+2=52
+  // Sàn gỗ trên đỉnh cột (Wooden Platform)
+  box(shrineGroup, 66, 66,  6, 0x6d4c41, [0, 0, 75]); // Z=72(đỉnh cột)+3=75
 
-  // --- Lan can / hành lang (Rail/Balcony) ---
-  box(shrineGroup, 52, 52,  3, 0x7d1e06, [0, 0,  57]); // màu đỏ thẫm
+  // Lan can hành lang (Balcony Rail)
+  box(shrineGroup, 74, 74,  5, 0x7d1e06, [0, 0, 81]);
 
-  // --- Gian thờ chính (Prayer Hall Body) ---
-  // Tường màu kem/vàng nhạt — trung tâm kiến trúc Chùa Một Cột
-  box(shrineGroup, 36, 36, 22, 0xf5e0a0, [0, 0,  69]);
-
-  const beamPositions = [
-    { x: +18, y: +18 },
-    { x: -18, y: +18 },
-    { x: +18, y: -18 },
-    { x: -18, y: -18 },
-  ];
+  // Cột xiên 4 góc (Diagonal Support Beams) — phân phối tải từ sàn xuống cột chính
+  // Dùng rotation.x / rotation.y để nghiêng beam về phía tâm.
+  // Rotation Euler: xoay quanh trục X và Y của local frame.
   const beamMat = new THREE.MeshLambertMaterial({ color: 0x6d4c41, flatShading: true });
-  beamPositions.forEach(({ x, y }) => {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 24), beamMat);
-    beam.position.set(x, y, 57);                          // Z=57 giữa sàn → gian thờ
-    beam.rotation.x = (y > 0 ? +1 : -1) * 0.4;          // nghiêng về tâm theo trục X
-    beam.rotation.y = (x > 0 ? -1 : +1) * 0.4;          // nghiêng về tâm theo trục Y
+  [[-24, -24], [-24, 24], [24, -24], [24, 24]].forEach(([bx, by]) => {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 30), beamMat);
+    beam.position.set(bx, by, 72);
+    beam.rotation.x = (by > 0 ? 1 : -1) * 0.38; // nghiêng về tâm theo trục X
+    beam.rotation.y = (bx > 0 ? -1 : 1) * 0.38; // nghiêng về tâm theo trục Y
     beam.castShadow = true;
     beam.receiveShadow = true;
     shrineGroup.add(beam);
   });
 
-  // --- 3 Tầng mái (Roof Tiers) — mái ngói đỏ thu nhỏ dần lên trên ---
-  // Mái nhiều tầng (pagoda roof) là đặc trưng kiến trúc Phật giáo châu Á.
-  box(shrineGroup, 54, 54, 6, 0xc0392b, [0, 0,  82]); // tầng 1 — rộng nhất
-  box(shrineGroup, 42, 42, 5, 0xc0392b, [0, 0,  91]); // tầng 2
-  box(shrineGroup, 30, 30, 4, 0xc0392b, [0, 0,  99]); // tầng 3 — hẹp nhất
+  // Gian thờ chính (Prayer Hall Body) — tường màu kem/vàng nhạt
+  box(shrineGroup, 52, 52, 32, 0xf5e0a0, [0, 0, 97]);
 
-  // --- Chóp vàng đỉnh (Gold Spire) ---
-  box(shrineGroup,  8,  8, 18, 0xe6a817, [0, 0, 112]);
+  // 3 tầng mái ngói đỏ (Three-Tier Pagoda Roof)
+  // Mái nhiều tầng = đặc trưng chùa chiền châu Á.
+  // Mỗi tầng cao hơn và hẹp hơn tầng dưới → tạo đường viền hình kim tự tháp.
+  box(shrineGroup, 78, 78,  8, 0xc0392b, [0, 0, 123]); // tầng 1 — rộng nhất
+  box(shrineGroup, 62, 62,  7, 0xc0392b, [0, 0, 134]); // tầng 2
+  box(shrineGroup, 46, 46,  5, 0xc0392b, [0, 0, 143]); // tầng 3 — hẹp nhất
+  box(shrineGroup, 14, 14, 28, 0xe6a817, [0, 0, 160]); // chóp vàng đỉnh tháp
 
-  const signTexture = createSignTexture();
+  // Biển tên chùa (Sign with Canvas Texture)
+  // BoxGeometry dẹt làm bảng, map texture Canvas lên mặt trước.
+  // sign.rotation.x = π/2 để biển đứng song song trục Y (hướng về phía camera).
+  const signTex = createSignTexture();
   const signMat = new THREE.MeshLambertMaterial({
-    map: signTexture,
-    color: 0xffffff,  // trắng → không bị tint, texture hiển thị nguyên bản màu sắc
+    map: signTex,
+    color: 0xffffff, // white → không tint, texture hiện nguyên màu canvas
     flatShading: true,
   });
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(30, 2, 8), signMat);
-  sign.position.set(0, -19, 69);    // Y=-19: phía trước mặt gian thờ (36/2+1=19)
-  sign.rotation.x = Math.PI / 2;   // xoay 90° để biển dựng đứng hướng về -Y
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(40, 2, 10), signMat);
+  sign.position.set(0, -27, 97); // Y=-27: mặt trước gian thờ (52/2+1=27)
+  sign.rotation.x = Math.PI / 2;
   sign.castShadow = true;
   sign.receiveShadow = true;
   shrineGroup.add(sign);
 
-  const wallLengthY = Math.abs(-360 - (-84)); // 276
-  const wallCenterY = (-84 + -360) / 2;       // -222
+  // ── 8. TƯỜNG BAO KHUÔN VIÊN (Compound Perimeter Walls) ───────────────────
+  // Tường gạch bao quanh toàn bộ chùa — ranh giới thánh địa.
+  // Tường dọc (Y-direction) + tường hậu (back wall) tại Y âm nhất.
+  const wallStartY = gateY;           // Y = -84 (cổng trước)
+  const wallEndY   = -12 * tileSize;  // Y = -504 (sau chùa)
+  const wallLen    = Math.abs(wallEndY - wallStartY); // 420 đơn vị
+  const wallMidY   = (wallStartY + wallEndY) / 2;    // -294
 
-  // Tường dọc trái
-  box(pagodaGroup, 6, wallLengthY, 20, 0xf5e0a0, [-168, wallCenterY, 10]); // thân
-  box(pagodaGroup, 8, wallLengthY,  4, 0x7d1e06, [-168, wallCenterY, 22]); // mái cap
+  // Tường dọc trái và phải (X = ±210)
+  box(g,  8, wallLen, 30, 0xf5e0a0, [-210, wallMidY, 15]);
+  box(g, 10, wallLen,  5, 0x7d1e06, [-210, wallMidY, 32]);
+  box(g,  8, wallLen, 30, 0xf5e0a0, [+210, wallMidY, 15]);
+  box(g, 10, wallLen,  5, 0x7d1e06, [+210, wallMidY, 32]);
 
-  // Tường dọc phải
-  box(pagodaGroup, 6, wallLengthY, 20, 0xf5e0a0, [+168, wallCenterY, 10]);
-  box(pagodaGroup, 8, wallLengthY,  4, 0x7d1e06, [+168, wallCenterY, 22]);
+  // Tường hậu (Back Wall tại Y=-504)
+  box(g, 428, 8, 30, 0xf5e0a0, [0, wallEndY, 15]);
+  box(g, 432,10,  5, 0x7d1e06, [0, wallEndY, 32]);
 
-  // Tường hậu (Back Wall) tại Y=-360
-  box(pagodaGroup, 336, 6, 20, 0xf5e0a0, [0, -360, 10]);
-  box(pagodaGroup, 340, 8,  4, 0x7d1e06, [0, -360, 22]);
-
-  return pagodaGroup;
+  return g;
 }
