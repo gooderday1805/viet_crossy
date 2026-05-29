@@ -5,6 +5,7 @@ import { Tree } from "./Tree";
 import { Car } from "./Car";
 import { Truck } from "./Truck";
 import { createPagodaArea } from "./PagodaArea";
+import { generateRows } from "../utilities/generateRows";
 
 export const metadata = [
   {
@@ -88,6 +89,9 @@ export const metadata = [
 export const map = new THREE.Group();
 
 export function initializeMap() {
+  metadata.length = 0;
+  map.remove(...map.children);
+  
   // Mở rộng grass đến row -13 để phủ toàn bộ khu vực chùa mở rộng
   for (let rowIndex = 0; rowIndex >= -13; rowIndex--) {
     const grass = Grass(rowIndex);
@@ -103,8 +107,12 @@ export function initializeMap() {
 }
 
 export function addRows() {
+  const newMetadata = generateRows(20);
+
+  const startIndex = metadata.length;
+  metadata.push(...newMetadata);
   metadata.forEach((rowData, index) => {
-    const rowIndex = index + 1;
+    const rowIndex = startIndex + index + 1;
 
     if (rowData.type === "forest") {
       const row = Grass(rowIndex);

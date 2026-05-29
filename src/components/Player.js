@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { metadata as rows, addRows } from "./Map";
+import { endsUpInValidPosition } from "../utilities/endsUpInValidPosition";
 
 export const player = Player();
 
@@ -29,7 +31,10 @@ function Player() {
   cap.receiveShadow = true;
   player.add(cap);
 
-  return player;
+  const playerContainer = new THREE.Group();
+  playerContainer.add(player);
+
+  return playerContainer;
 }
 
 export const position = {
@@ -39,7 +44,31 @@ export const position = {
 
 export const movesQueue = [];
 
+export function initializePlayer() {
+  // Initialize the Three.js player object
+  player.position.x = 0;
+  player.position.y = 0;
+  player.children[0].position.z = 0;
+
+  // Initialize metadata
+  position.currentRow = 0;
+  position.currentTile = 0;
+
+  // Clear the moves queue
+  movesQueue.length = 0;
+}
+
 export function queueMove(direction) {
+  const isValidMove = endsUpInValidPosition(
+    {
+      rowIndex: position.currentRow,
+      tileIndex: position.currentTile,
+    },
+    [...movesQueue, direction]
+  );
+
+  if (!isValidMove) return;
+
   movesQueue.push(direction);
 }
 
@@ -50,4 +79,10 @@ export function stepCompleted() {
   if (direction === "backward") position.currentRow -= 1;
   if (direction === "left") position.currentTile -= 1;
   if (direction === "right") position.currentTile += 1;
+
+   // Add new rows if the player is running out of them
+  if (position.currentRow > rows.length - 10) addRows();
+
+  const scoreDOM = document.getElementById("score");
+  if (scoreDOM) scoreDOM.innerText = position.currentRow.toString();
 }

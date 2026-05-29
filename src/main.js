@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { Renderer } from "./components/Renderer";
 import { Camera } from "./components/Camera";
-import { player } from "./components/Player";
+import { player, initializePlayer } from "./components/Player";
 import { map, initializeMap } from "./components/Map";
 import { tilesPerRow, tileSize } from "./constants";
 import { DirectionalLight } from "./components/DirectionalLight";
 import { animateVehicles } from "./animateVehicles";
 import { animatePlayer } from "./animatePlayer";
+import { hitTest } from "./hitTest";
 import "./collectUserInput";
 import "./style.css";
 
@@ -18,15 +19,28 @@ const ambientLight = new THREE.AmbientLight();
 scene.add(ambientLight);
 
 const dirLight = DirectionalLight();
-scene.add(dirLight);
+dirLight.target = player;
+player.add(dirLight);
 
 const camera = Camera();
 scene.add(camera);
 
+const scoreDOM = document.getElementById("score");
+const resultDOM = document.getElementById("result-container");
+
 initializeGame();
 
+document
+  .querySelector("#retry")
+  ?.addEventListener("click", initializeGame);
+
 function initializeGame() {
+  initializePlayer();
   initializeMap();
+
+   // Initialize UI
+  if (scoreDOM) scoreDOM.innerText = "0";
+  if (resultDOM) resultDOM.style.visibility = "hidden";
 }
 
 // ============================================================
@@ -71,6 +85,6 @@ renderer.setAnimationLoop(animate);
 function animate() {
   animateVehicles();
   animatePlayer();
-
+  hitTest();
   renderer.render(scene, camera);
 }
