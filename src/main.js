@@ -12,6 +12,7 @@ import { animatePond } from "./animatePond";
 import { hitTest } from "./hitTest";
 import { gameState } from "./gameState";
 import { createPondPlatforms, initializePondPlatforms } from "./components/PondPlatforms";
+import { playBgm } from "./audio";
 import "./collectUserInput";
 import "./style.css";
 
@@ -61,6 +62,7 @@ function initializeGame() {
   initializePlayer();
   initializeMap();
   initializePondPlatforms(); // reset bệ về vị trí ban đầu khi Retry
+  playBgm(); // phát BGM từ đầu mỗi lần bắt đầu/retry
 
   if (scoreDOM) scoreDOM.innerText = "0";
   if (resultDOM) resultDOM.style.visibility = "hidden";

@@ -7,6 +7,7 @@ import {
 } from "./components/Player";
 import { tileSize } from "./constants";
 import { platformData, PLATFORM_HALF } from "./components/PondPlatforms";
+import { playJump } from "./audio";
 
 // Hằng dùng chung với hitTest/animatePond để nhất quán
 const ON_PLATFORM_THRESHOLD = PLATFORM_HALF + 10;
@@ -50,6 +51,7 @@ export function animatePlayer() {
 
   if (!moveClock.running) {
     moveClock.start();
+    playJump(); // phát SFX nhảy ngay khi bước bắt đầu
     // Chụp lại vị trí thực tế (đã bao gồm carry offset) làm điểm xuất phát animation.
     stepStartX = player.position.x;
     stepStartY = player.position.y;
