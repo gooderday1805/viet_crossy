@@ -138,8 +138,8 @@ export function stepCompleted() {
    // Add new rows if the player is running out of them
   if (position.currentRow > rows.length - 10) addRows();
 
-  // Score chỉ đếm khi player đã thoát khỏi khu chùa (currentRow > 0).
-  // Trong hồ / khu chùa: score = 0 (chưa "kiếm" được điểm).
+  // Score tính từ START_ROW để đếm cả tiến trình qua hồ/chùa.
+  // currentRow - START_ROW = số hàng đã vượt qua từ đầu game (min = 0 khi đứng yên).
   const scoreDOM = document.getElementById("score");
-  if (scoreDOM) scoreDOM.innerText = Math.max(0, position.currentRow).toString();
+  if (scoreDOM) scoreDOM.innerText = Math.max(0, position.currentRow - START_ROW).toString();
 }

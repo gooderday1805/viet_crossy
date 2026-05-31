@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { metadata as rows } from "./components/Map";
-import { player, position, movesQueue } from "./components/Player";
+import { player, position, movesQueue, START_ROW } from "./components/Player";
 import { gameState } from "./gameState";
 import { platformData, PLATFORM_HALF } from "./components/PondPlatforms";
 
@@ -22,7 +22,8 @@ function triggerGameOver() {
   gameState.isOver = true;
   if (!resultDOM || !finalScoreDOM) return;
   resultDOM.style.visibility = "visible";
-  finalScoreDOM.innerText = Math.max(0, position.currentRow).toString();
+  // Score tính từ START_ROW (-10) để đếm cả tiến trình trong khu chùa/hồ sen.
+  finalScoreDOM.innerText = Math.max(0, position.currentRow - START_ROW).toString();
 }
 
 export function hitTest() {

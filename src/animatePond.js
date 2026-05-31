@@ -20,19 +20,18 @@ export function animatePond() {
     position.currentRow >= POND_ROW_MIN &&
     position.currentRow <= POND_ROW_MAX;
 
-  // Flag: chỉ cho phép carry từ đúng 1 bệ mỗi frame.
-  // Tránh double-carry khi 2 bệ cùng row đều nằm trong threshold (cộng delta 2 lần → bị đẩy gấp đôi).
-  let carriedThisFrame = false;
+  // Pass 1: lưu prevX của từng bệ trước khi di chuyển.
+  // Cần thiết để tính dx = current - prev cho carry, và để check khoảng cách
+  // so với vị trí BỆ TRƯỚC KHI DỊCH (tương tự velocity-based carry).
+  const prevPositions = platformData.map((p) => p.ref.position.x);
 
+  // Pass 2: di chuyển tất cả bệ + bounce ở biên.
   platformData.forEach((p) => {
-    const prevX = p.ref.position.x;
-
-    // Di chuyển bệ theo chiều hiện tại
     p.ref.position.x += p.speed * p.direction * delta;
 
     // ── BOUNCE ─────────────────────────────────────────────────────────────────
-    // Khi chạm tường: kẹp vào biên rồi đảo chiều (không wrap-around).
-    // Bệ sẽ đi qua đi lại vô tận trong khuôn viên chùa — mang theo nhân vật.
+    // Khi chạm tường: kẹp vào biên rồi đảo chiều.
+    // Sau bounce, 2 bệ cùng hàng có thể đi ngược chiều nhau → chồng lên nhau.
     if (p.ref.position.x >= POND_BOUNDS.RIGHT) {
       p.ref.position.x = POND_BOUNDS.RIGHT;
       p.direction = -1;
@@ -40,18 +39,34 @@ export function animatePond() {
       p.ref.position.x = POND_BOUNDS.LEFT;
       p.direction = 1;
     }
-
-    // ── CARRY ──────────────────────────────────────────────────────────────────
-    // Kéo player theo bệ khi: trong hồ + cùng hàng + đứng yên + đủ gần + chưa carry frame này.
-    if (!carriedThisFrame && inPond && movesQueue.length === 0 && p.rowIndex === position.currentRow) {
-      if (Math.abs(player.position.x - prevX) < ON_PLATFORM_THRESHOLD) {
-        const dx = p.ref.position.x - prevX;
-        player.position.x = Math.max(
-          POND_BOUNDS.LEFT,
-          Math.min(POND_BOUNDS.RIGHT, player.position.x + dx)
-        );
-        carriedThisFrame = true;
-      }
-    }
   });
+
+  // ── CARRY: chọn bệ GẦN NHẤT cùng hàng ────────────────────────────────────
+  // Bug cũ: dùng `carriedThisFrame` flag → pick bệ ĐẦU TIÊN trong threshold.
+  // Khi 2 bệ chồng nhau (sau bounce), bệ đầu tiên trong mảng không phải lúc
+  // nào cũng là bệ "đúng" → player bị chuyển sang bệ sai.
+  // Fix: tìm bệ có |player.x - prevX| NHỎ NHẤT dưới threshold → carry từ đó.
+  if (inPond && movesQueue.length === 0) {
+    let carryPlatform = null;
+    let carryPrevX    = null;
+    let minDist       = ON_PLATFORM_THRESHOLD; // chỉ xét bệ < threshold
+
+    platformData.forEach((p, i) => {
+      if (p.rowIndex !== position.currentRow) return;
+      const dist = Math.abs(player.position.x - prevPositions[i]);
+      if (dist < minDist) {
+        minDist       = dist;
+        carryPlatform = p;
+        carryPrevX    = prevPositions[i];
+      }
+    });
+
+    if (carryPlatform) {
+      const dx = carryPlatform.ref.position.x - carryPrevX;
+      player.position.x = Math.max(
+        POND_BOUNDS.LEFT,
+        Math.min(POND_BOUNDS.RIGHT, player.position.x + dx)
+      );
+    }
+  }
 }

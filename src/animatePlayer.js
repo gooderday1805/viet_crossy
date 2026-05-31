@@ -6,6 +6,12 @@ import {
   stepCompleted,
 } from "./components/Player";
 import { tileSize } from "./constants";
+import { platformData, PLATFORM_HALF } from "./components/PondPlatforms";
+
+// Hằng dùng chung với hitTest/animatePond để nhất quán
+const ON_PLATFORM_THRESHOLD = PLATFORM_HALF + 10;
+const POND_ROW_MIN = -9;
+const POND_ROW_MAX = -4;
 
 const moveClock = new THREE.Clock(false);
 
@@ -57,10 +63,39 @@ export function animatePlayer() {
 
   // Once a step has ended
   if (progress >= 1) {
-    stepCompleted();
+    stepCompleted(); // cập nhật position.currentRow trước
+    snapToPlatformCenter(); // sau đó snap về tâm bệ (dùng currentRow mới)
     moveClock.stop();
     stepStartX = null;
     stepStartY = null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// snapToPlatformCenter: sau mỗi bước nhảy trong hồ sen, căn player về tâm bệ
+// gần nhất trong cùng hàng nếu đủ gần (< ON_PLATFORM_THRESHOLD).
+//
+// Khái niệm CG: Position Snapping — đưa object về điểm tham chiếu ngay cuối
+// animation để loại bỏ lệch tích lũy do carry (continuous offset).
+// Snap xảy ra 1 frame (0.016s) → không thấy nhấp nháy.
+// ─────────────────────────────────────────────────────────────────────────────
+function snapToPlatformCenter() {
+  if (position.currentRow < POND_ROW_MIN || position.currentRow > POND_ROW_MAX) return;
+
+  let closest = null;
+  let minDist = Infinity;
+  platformData.forEach((p) => {
+    if (p.rowIndex !== position.currentRow) return;
+    const dist = Math.abs(player.position.x - p.ref.position.x);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = p;
+    }
+  });
+
+  // Chỉ snap khi thực sự đang đứng trên bệ (không snap khi sắp chết)
+  if (closest && minDist < ON_PLATFORM_THRESHOLD) {
+    player.position.x = closest.ref.position.x;
   }
 }
 
