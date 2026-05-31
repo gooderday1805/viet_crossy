@@ -53,6 +53,9 @@ export const START_ROW = -10;
 export function initializePlayer() {
   player.position.x = 0;
   player.position.y = START_ROW * 42;
+  // Z gốc = mặt đất tại row -10 (sân đón tiếp chùa, top = 5).
+  // animatePlayer.js sẽ lerp giá trị này sang terrain kế tiếp khi nhảy.
+  player.position.z = 5;
   player.children[0].position.z = 0;
 
   position.currentRow = START_ROW;
@@ -76,6 +79,51 @@ export function queueMove(direction) {
   if (!isValidMove) return;
 
   movesQueue.push(direction);
+}
+
+/**
+ * Thay thế mesh nhân vật bằng GLB model đã load.
+ * Cấu trúc player: playerContainer → innerGroup (children[0]) → meshes
+ * animatePlayer.js dùng children[0].position.z (nhảy) và children[0].rotation.z (xoay)
+ * nên ta đặt gltfScene vào đúng vị trí children[0].
+ */
+/**
+ * Thay thế mesh nhân vật bằng GLB model đã load + xử lý texture.
+ *
+ * Khái niệm CG:
+ *  - AABB (Axis-Aligned Bounding Box): hộp bao tối thiểu theo trục thế giới,
+ *    dùng để đo kích thước thực của object sau khi áp transform.
+ *  - Uniform scale: nhân đều 3 trục (scale.setScalar) để giữ tỉ lệ model.
+ */
+export function setPlayerModel(gltfScene) {
+  const innerGroup = player.children[0];
+  innerGroup.clear(); // xóa box body + cap cũ
+
+  // Tính AABB trước khi đặt scale — lấy kích thước gốc (đã có rotation từ prepareModel)
+  const box = new THREE.Box3().setFromObject(gltfScene);
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(...box.getSize(new THREE.Vector3()).toArray());
+
+  // Uniform scale để model cao ~20 units (xấp xỉ box player cũ)
+  const gameScale = 20 / maxDim;
+  gltfScene.scale.setScalar(gameScale);
+
+  // Center X/Y về gốc; đặt đáy model tại z=0 (mặt tile)
+  // box.min.z * gameScale = offset từ gốc xuống đáy sau khi scale
+  gltfScene.position.set(
+    -center.x * gameScale,
+    -center.y * gameScale,
+    -box.min.z * gameScale
+  );
+
+  gltfScene.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  innerGroup.add(gltfScene);
 }
 
 export function stepCompleted() {

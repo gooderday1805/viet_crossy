@@ -9,6 +9,29 @@ import { tileSize } from "./constants";
 
 const moveClock = new THREE.Clock(false);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// getGroundZ: trả về chiều cao mặt đất (world Z) tại một hàng bản đồ cụ thể.
+//
+// Khái niệm CG: "ground plane" — mặt phẳng tham chiếu mà nhân vật đứng trên.
+// Khi có nhiều loại địa hình khác nhau độ cao (cỏ, đường đá, bệ hồ),
+// ta cần biết Z gốc của từng terrain để:
+//   • player.position.z  = mặt đất (ground plane)
+//   • innerGroup.position.z = arc nhảy (offset tạm thời phía trên ground)
+//   Tổng world Z chân = player.position.z + arc — luôn đúng với bề mặt.
+//
+// Nguồn số liệu (đo từ geometry của mỗi component):
+//   Grass/Road foundation : BoxGeometry(h=3), center z=1.5 → top = 3
+//   Đường đá tiếp cận (row −1→−3) : BoxGeometry(h=3), center z=4.5 → top = 6
+//   Khu đón tiếp chùa (row −10)   : BoxGeometry(h=3), center z=3.5 → top = 5
+//   Bệ nhảy hồ sen (rows −9→−4)   : base center z=9, top slab z=12.5 → đỉnh = 13.5
+// ─────────────────────────────────────────────────────────────────────────────
+function getGroundZ(rowIndex) {
+  if (rowIndex >= -9 && rowIndex <= -4) return 13.5; // đỉnh bệ hồ sen (moving platform)
+  if (rowIndex >= -3 && rowIndex <= -1) return 6;    // đường đá dẫn vào chùa
+  if (rowIndex === -10)                 return 5;     // sân đón tiếp (row xuất phát)
+  return 3;                                           // cỏ / đường xe (row 0 trở lên)
+}
+
 // Capture vị trí player tại thời điểm bắt đầu mỗi bước nhảy.
 // Cần thiết vì carry mechanism (animatePond) có thể đã dịch player.position.x
 // khỏi position.currentTile * tileSize trước khi bước xảy ra.
@@ -59,6 +82,24 @@ function setPosition(progress) {
 
   player.position.x = THREE.MathUtils.lerp(startX, endX, progress);
   player.position.y = THREE.MathUtils.lerp(startY, endY, progress);
+
+  // Tính hàng đích để lấy ground height tương ứng.
+  // position.currentRow chưa được cập nhật trong lúc animation còn chạy
+  // (stepCompleted() chỉ gọi khi progress >= 1), nên đây là hàng HIỆN TẠI.
+  const dir = movesQueue[0];
+  let rowDelta = 0;
+  if (dir === "forward")  rowDelta =  1;
+  if (dir === "backward") rowDelta = -1;
+  const nextRow = position.currentRow + rowDelta;
+
+  // Lerp ground height từ terrain hiện tại → terrain đích trong suốt bước nhảy.
+  // Kết hợp với arc (sin) bên dưới: player glide lên/xuống độ cao đúng khi hạ cánh.
+  const startZ = getGroundZ(position.currentRow);
+  const endZ   = getGroundZ(nextRow);
+  player.position.z = THREE.MathUtils.lerp(startZ, endZ, progress);
+
+  // Arc nhảy parabolic: sin(0→π) tạo đỉnh ở giữa bước, về 0 khi hạ cánh.
+  // Đây là offset tạm thời phía trên ground plane — không ảnh hưởng đến Z cuối cùng.
   player.children[0].position.z = Math.sin(progress * Math.PI) * 8;
 }
 

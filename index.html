@@ -4,9 +4,34 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite App</title>
+    <title>VietCrossy</title>
   </head>
   <body>
+    <!-- Màn hình chọn nhân vật — hiện trước khi game bắt đầu -->
+    <div id="character-select">
+      <div class="cs-header">
+        <p class="cs-subtitle">CHỌN NHÂN VẬT</p>
+        <h1 class="cs-title">VietCrossy</h1>
+      </div>
+      <div class="cs-cards">
+        <button class="cs-card" data-model="cat">
+          <div class="cs-preview" id="preview-cat"></div>
+          <div class="cs-card-info">
+            <span class="cs-name">Mèo</span>
+            <span class="cs-desc">Linh hoạt · Nhanh nhẹn</span>
+          </div>
+        </button>
+        <button class="cs-card" data-model="dog">
+          <div class="cs-preview" id="preview-dog"></div>
+          <div class="cs-card-info">
+            <span class="cs-name">Chó</span>
+            <span class="cs-desc">Trung thành · Dũng cảm</span>
+          </div>
+        </button>
+      </div>
+      <p class="cs-hint">▶ nhấn để bắt đầu ◀</p>
+    </div>
+
     <canvas class="game"></canvas>
     <div id="controls">
       <div>

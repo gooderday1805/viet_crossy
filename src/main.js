@@ -1,7 +1,8 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Renderer } from "./components/Renderer";
 import { Camera } from "./components/Camera";
-import { player, initializePlayer } from "./components/Player";
+import { player, initializePlayer, setPlayerModel } from "./components/Player";
 import { map, initializeMap } from "./components/Map";
 import { tilesPerRow, tileSize } from "./constants";
 import { DirectionalLight } from "./components/DirectionalLight";
@@ -13,6 +14,12 @@ import { gameState } from "./gameState";
 import { createPondPlatforms, initializePondPlatforms } from "./components/PondPlatforms";
 import "./collectUserInput";
 import "./style.css";
+
+// Vite xử lý import ?url — trả về đường dẫn public đúng khi build
+import catModelUrl from "./models/animal-cat.glb?url";
+import dogModelUrl from "./models/animal-dog.glb?url";
+// Texture dùng chung cho cả 2 model (palette màu dạng atlas)
+import colormapUrl from "./Textures/colormap.png?url";
 
 const scene = new THREE.Scene();
 // scene.background là màu fill toàn màn hình khi không có geometry nào che
@@ -38,7 +45,12 @@ scene.add(camera);
 const scoreDOM = document.getElementById("score");
 const resultDOM = document.getElementById("result-container");
 
-initializeGame();
+const renderer = Renderer();
+// Animation loop chưa start — sẽ được bật sau khi chọn nhân vật
+
+// Game chưa start ngay — chờ người dùng chọn nhân vật
+// top-level await: module chờ load xong 2 GLB mới chạy tiếp
+await setupCharacterSelect();
 
 document
   .querySelector("#retry")
@@ -89,13 +101,125 @@ scene.add(gridHelper);
 // ============================================================
 console.log(scene.children);
 
-const renderer = Renderer();
-
-renderer.setAnimationLoop(animate);
-
 // Khoảng cách cố định từ camera đến player theo trục Y.
 // Camera luôn ở phía sau player 380 đơn vị (≈ 9 tile) để nhìn thấy đủ cảnh phía trước.
 const CAMERA_Y_OFFSET = -380;
+
+// ============================================================
+// CHARACTER SELECT
+// ============================================================
+
+/**
+ * Load cả 2 GLB trước, render preview xoay 3D trong thẻ chọn nhân vật.
+ * Khi người dùng click, gán model vào player rồi khởi động game loop.
+ */
+async function setupCharacterSelect() {
+  const loader = new GLTFLoader();
+
+  // Load texture và 2 model song song
+  const [colormap, catGltf, dogGltf] = await Promise.all([
+    new THREE.TextureLoader().loadAsync(colormapUrl),
+    loader.loadAsync(catModelUrl),
+    loader.loadAsync(dogModelUrl),
+  ]);
+
+  // GLTF dùng Y-up, Three.js mặc định cũng Y-up nhưng game này Z-up
+  // → xoay -90° quanh X để trục Y (cao) của model chuyển thành Z (cao) của game
+  colormap.flipY = false;         // GLTF UV gốc tọa độ ở góc dưới-trái → không lật
+  colormap.colorSpace = THREE.SRGBColorSpace; // đảm bảo màu sắc đúng gamma
+
+  // Áp texture và sửa trục cho cả 2 model
+  [catGltf.scene, dogGltf.scene].forEach((root) => {
+    root.rotation.x = -Math.PI / 2;  // GLTF Y-up → game Z-up
+    root.rotation.z = Math.PI;      // mặt model quay về +Y (hướng forward của game)
+
+    // Gán colormap vào từng mesh — GLB này dùng texture ngoài nên phải gán thủ công
+    root.traverse((child) => {
+      if (!child.isMesh) return;
+      child.material = new THREE.MeshLambertMaterial({
+        map: colormap,
+        flatShading: true,
+      });
+    });
+  });
+
+  // Dùng clone() cho preview để scene gốc còn nguyên khi gán vào game
+  createPreview("preview-cat", catGltf.scene.clone());
+  createPreview("preview-dog", dogGltf.scene.clone());
+
+  const modelMap = { cat: catGltf.scene, dog: dogGltf.scene };
+
+  document.querySelectorAll(".cs-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      setPlayerModel(modelMap[card.dataset.model]);
+      document.getElementById("character-select").style.display = "none";
+      initializeGame();
+      renderer.setAnimationLoop(animate); // bắt đầu game loop
+    });
+  });
+}
+
+/**
+ * Tạo mini Three.js scene render GLB model xoay trong ô preview.
+ * Auto-fit: tính BoundingBox để scale & center model vừa khung.
+ *
+ * Khái niệm CG:
+ *  - BoundingBox (AABB): hộp bao nhỏ nhất chứa toàn bộ geometry theo trục XYZ
+ *  - setScalar(s): đặt scale.x = scale.y = scale.z = s (uniform scale)
+ */
+function createPreview(containerId, model) {
+  const container = document.getElementById(containerId);
+  const W = 200, H = 200;
+
+  const previewScene = new THREE.Scene();
+  // Nền tối khớp với màu #character-select để preview trông liền mạch với card
+  previewScene.background = new THREE.Color(0x0a0e14);
+
+  // Camera vuông (aspect = 1) nhìn chéo từ góc trên-trái kiểu isometric
+  const previewCam = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
+  previewCam.up.set(0, 0, 1); // Z-up giống game chính
+
+  // --- Auto-fit model vào khung preview ---
+  // Box3.setFromObject duyệt toàn bộ children, tính AABB bao quanh model
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fitScale = 2 / maxDim; // chuẩn hóa về ~2 units
+
+  // Uniform scale + dịch về gốc (0,0,0), đặt đáy mô hình tại z=0
+  model.scale.setScalar(fitScale);
+  model.position.set(
+    -center.x * fitScale,
+    -center.y * fitScale,
+    -box.min.z * fitScale
+  );
+  model.traverse((c) => { if (c.isMesh) c.castShadow = true; });
+  previewScene.add(model);
+
+  // Camera nhìn vào mặt trước model (+Y là forward sau khi fix rotation)
+  // Đặt camera ở phía +Y, hơi cao và lệch phải — góc nhìn isometric nhẹ
+  previewCam.position.set(1, 3.5, 2);
+  previewCam.lookAt(0, 0, 0.8);
+
+  // Ambient + Directional Light tạo chiều sâu cho model
+  previewScene.add(new THREE.AmbientLight(0xffffff, 1.2));
+  const dir = new THREE.DirectionalLight(0xffffff, 2.5);
+  dir.position.set(2, -3, 5);
+  previewScene.add(dir);
+
+  const previewRenderer = new THREE.WebGLRenderer({ antialias: true });
+  previewRenderer.setPixelRatio(window.devicePixelRatio);
+  previewRenderer.setSize(W, H);
+  container.appendChild(previewRenderer.domElement);
+
+  // Render tĩnh — chỉ cần vẽ 1 lần, không cần animation loop
+  previewRenderer.render(previewScene, previewCam);
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
 
 function animate() {
   // Khi game over: dừng toàn bộ logic (xe, player, collision).
