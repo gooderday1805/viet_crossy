@@ -111,7 +111,11 @@ export function addRows() {
 
   const startIndex = metadata.length;
   metadata.push(...newMetadata);
-  metadata.forEach((rowData, index) => {
+  // Chỉ lặp qua newMetadata (20 row mới) — KHÔNG phải toàn bộ metadata.
+  // Nếu dùng metadata.forEach: mỗi lần addRows() lần 2+ sẽ tạo mesh trùng
+  // cho toàn bộ row cũ ở vị trí sai → memory leak + visual glitch.
+  // startIndex + index + 1: tính rowIndex tuyệt đối trong scene (bắt đầu từ 1).
+  newMetadata.forEach((rowData, index) => {
     const rowIndex = startIndex + index + 1;
 
     if (rowData.type === "forest") {

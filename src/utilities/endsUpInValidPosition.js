@@ -9,26 +9,27 @@ export function endsUpInValidPosition(currentPosition, moves) {
     moves
   );
 
-  // Detect if we hit the edge of the board
+  // Chặn player ra ngoài biên map:
+  //   Trái/phải: tile ngoài [-8, 8]
+  //   Phía sau (âm Y): row < -11 = qua tường hậu chùa (wallEndY = -12 * tileSize)
+  //   Phía trước: không giới hạn (map procedural vô hạn)
   if (
-    finalPosition.rowIndex === -1 ||
+    finalPosition.rowIndex < -11 ||
     finalPosition.tileIndex === minTileIndex - 1 ||
     finalPosition.tileIndex === maxTileIndex + 1
   ) {
-    // Invalid move, ignore move command
     return false;
   }
 
   // Detect if we hit a tree
+  // Optional chaining (?.) — trả về undefined (falsy) thay vì throw nếu finalRow là undefined.
   const finalRow = rows[finalPosition.rowIndex - 1];
   if (
-    finalRow &&
-    finalRow.type === "forest" &&
+    finalRow?.type === "forest" &&
     finalRow.trees.some(
       (tree) => tree.tileIndex === finalPosition.tileIndex
     )
   ) {
-    // Invalid move, ignore move command
     return false;
   }
 

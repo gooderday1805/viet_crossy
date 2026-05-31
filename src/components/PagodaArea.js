@@ -1,17 +1,8 @@
 import * as THREE from "three";
 import { tileSize } from "../constants";
 
-// Các bậc đá an toàn để nhảy qua hồ sen.
-// Người chơi phải đứng đúng các ô này — rơi xuống hồ = thua.
-// Pattern zigzag: 0 → -1 → +1 → -1 → +1 → 0 (trái-phải xen kẽ)
-export const safePathTiles = [
-  { xIndex:  0, yIndex:  -4 }, // Bậc đầu: bước xuống hồ từ sân giữa
-  { xIndex: -1, yIndex:  -5 }, // Bậc 1: lệch trái một ô
-  { xIndex:  1, yIndex:  -6 }, // Bậc 2: lệch phải một ô
-  { xIndex: -1, yIndex:  -7 }, // Bậc 3: lệch trái một ô
-  { xIndex:  1, yIndex:  -8 }, // Bậc 4: lệch phải một ô
-  { xIndex:  0, yIndex:  -9 }, // Bậc cuối: về giữa, ra khỏi hồ
-];
+// Bệ nhảy hồ sen nay là MOVING PLATFORMS (PondPlatforms.js).
+// safePathTiles tĩnh đã được thay thế — xem src/components/PondPlatforms.js.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: tạo BoxGeometry + MeshLambertMaterial và thêm vào parent group.
@@ -118,10 +109,10 @@ export function createPagodaArea() {
     box(g,  6,  6,  6, 0xe6a817, [x, gateY, 67  ]); // chóp vàng
   });
 
-  // Cây Bồ Đề cặp 1 — hai bên bình phong
+  // Cây Bồ Đề cặp 1 — hai bên cổng Tam Quan (cùng row với cổng = gateY)
   [{ x: -120 }, { x: +120 }].forEach(({ x }) => {
-    box(g, 14, 16, 32, 0x4e342e, [x, screenY, 16]); // thân cây
-    box(g, 46, 50, 40, 0x27ae60, [x, screenY, 52]); // tán lá
+    box(g, 14, 16, 32, 0x4e342e, [x, gateY, 16]); // thân cây
+    box(g, 46, 50, 40, 0x27ae60, [x, gateY, 52]); // tán lá
   });
 
   // ── 4. SÂN CHÙA (Temple Courtyard: row -3.5, khoảng giữa bình phong và hồ)
@@ -153,28 +144,10 @@ export function createPagodaArea() {
   waterMesh.receiveShadow = true;
   g.add(waterMesh);
 
-  // Bệ bậc nhảy (Jumping Stone Platforms)
-  // Kích thước 28×28 (= tileSize-14) → khoảng hở hai bên = 7 đơn vị.
-  // Người chơi phải nhảy đúng ô — trượt sang ô trống là rơi xuống hồ.
-  const STEP = tileSize - 14; // = 28 đơn vị
-  safePathTiles.forEach(({ xIndex, yIndex }) => {
-    // Đế bậc (đá nền dày, xám đậm)
-    box(
-      g,
-      STEP, STEP, 6,
-      0x717d7e,
-      [xIndex * tileSize, yIndex * tileSize, 9]  // Z center=9 → đỉnh bậc = Z=12
-    );
-    // Mặt bậc (màu sáng hơn để phân biệt rõ với nước)
-    box(
-      g,
-      STEP - 4, STEP - 4, 2,
-      0xa9cce3,
-      [xIndex * tileSize, yIndex * tileSize, 12.5]
-    );
-  });
+  // Bệ nhảy nay là MOVING PLATFORMS — tạo và animate trong PondPlatforms.js + animatePond.js.
+  // Không tạo static mesh ở đây nữa để tránh chồng lên bệ di động.
 
-  // Lá sen & hoa sen trang trí (đặt ở ô KHÔNG có bậc đá — tránh chắn lối)
+  // Lá sen & hoa sen trang trí (phủ khắp hồ)
   const lotusSpots = [
     { xi:  3, yi: -5 }, { xi: -3, yi: -5 },
     { xi:  3, yi: -6 }, { xi: -3, yi: -7 },
