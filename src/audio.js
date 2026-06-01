@@ -49,3 +49,26 @@ export function playGameOver() {
   gameOverSfx.currentTime = 0;
   gameOverSfx.play().catch(() => {});
 }
+
+// ── Mute toggle ───────────────────────────────────────────────────────────────
+// Trạng thái tắt tiếng — dùng thuộc tính .muted của HTMLAudioElement thay vì
+// set volume = 0 để giữ nguyên volume gốc khi bật lại.
+let _muted = false;
+
+export function isMuted() {
+  return _muted;
+}
+
+// setMuted(true/false): tắt hoặc bật âm thanh toàn bộ SFX + BGM cùng lúc.
+export function setMuted(muted) {
+  _muted = muted;
+  bgm.muted        = muted;
+  jumpSfx.muted    = muted;
+  gameOverSfx.muted = muted;
+}
+
+// toggleMute: đổi trạng thái muted, trả về trạng thái mới (true = đang tắt).
+export function toggleMute() {
+  setMuted(!_muted);
+  return _muted;
+}

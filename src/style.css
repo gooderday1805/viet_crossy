@@ -294,6 +294,24 @@ body {
   box-shadow: 0 8px 24px rgba(192, 57, 43, 0.5);
 }
 
+/* Nút "Âm Thanh" — xanh dương trung tính */
+.pause-action-btn--mute {
+  background: linear-gradient(135deg, #1a5276, #2980b9);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(41, 128, 185, 0.35);
+}
+.pause-action-btn--mute:hover {
+  box-shadow: 0 8px 24px rgba(41, 128, 185, 0.5);
+}
+/* Khi đang tắt tiếng — chuyển sang tím để nổi bật trạng thái tắt */
+.pause-action-btn--mute.muted {
+  background: linear-gradient(135deg, #4a235a, #7d3c98);
+  box-shadow: 0 4px 18px rgba(125, 60, 152, 0.35);
+}
+.pause-action-btn--mute.muted:hover {
+  box-shadow: 0 8px 24px rgba(125, 60, 152, 0.5);
+}
+
 /* =============================================
    RESULT CONTAINER
    ============================================= */

@@ -6,6 +6,7 @@ import { Car } from "./Car";
 import { Truck } from "./Truck";
 import { createPagodaArea } from "./PagodaArea";
 import { generateRows } from "../utilities/generateRows";
+import { spawnCoinsForRow } from "../coins";
 
 export const metadata = [
   {
@@ -143,6 +144,8 @@ export function addRows() {
       });
 
       map.add(row);
+      // Spawn xu ngẫu nhiên trên lane ô tô (40% xác suất, tile không bị xe chiếm)
+      spawnCoinsForRow(rowData, rowIndex);
     }
 
     if (rowData.type === "truck") {
@@ -159,6 +162,8 @@ export function addRows() {
       });
 
       map.add(row);
+      // Spawn xu ngẫu nhiên trên lane xe tải (40% xác suất, tile không bị xe chiếm)
+      spawnCoinsForRow(rowData, rowIndex);
     }
   });
 }

@@ -25,8 +25,8 @@ function triggerGameOver() {
   playGameOver();
   if (!resultDOM || !finalScoreDOM) return;
   resultDOM.style.visibility = "visible";
-  // Score tính từ START_ROW (-10) để đếm cả tiến trình trong khu chùa/hồ sen.
-  finalScoreDOM.innerText = Math.max(0, position.currentRow - START_ROW).toString();
+  // Score cuối = hàng đã vượt qua + coinBonus tích lũy trong game.
+  finalScoreDOM.innerText = (Math.max(0, position.currentRow - START_ROW) + gameState.coinBonus).toString();
 }
 
 export function hitTest() {

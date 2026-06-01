@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Renderer } from "./components/Renderer";
 import { Camera } from "./components/Camera";
-import { player, initializePlayer, setPlayerModel } from "./components/Player";
+import { player, initializePlayer, setPlayerModel, position, START_ROW } from "./components/Player";
 import { map, initializeMap } from "./components/Map";
 import { tilesPerRow, tileSize } from "./constants";
 import { DirectionalLight } from "./components/DirectionalLight";
@@ -11,8 +11,9 @@ import { animatePlayer } from "./animatePlayer";
 import { animatePond } from "./animatePond";
 import { hitTest } from "./hitTest";
 import { gameState } from "./gameState";
-import { createPondPlatforms, initializePondPlatforms } from "./components/PondPlatforms";
-import { playBgm, pauseBgm, resumeBgm, stopBgm } from "./audio";
+import { createPondPlatforms, initializePondPlatforms, platformData } from "./components/PondPlatforms";
+import { playBgm, pauseBgm, resumeBgm, stopBgm, toggleMute } from "./audio";
+import { coinsGroup, initializeCoins, spawnPondCoins, animateCoins, collectCoins } from "./coins";
 import "./collectUserInput";
 import "./style.css";
 
@@ -33,6 +34,9 @@ scene.add(map);
 const pondPlatforms = createPondPlatforms();
 scene.add(pondPlatforms);
 
+// Nhóm đồng xu — thêm vào scene để coinsGroup.clear() không ảnh hưởng map/platforms.
+scene.add(coinsGroup);
+
 const ambientLight = new THREE.AmbientLight();
 scene.add(ambientLight);
 
@@ -47,6 +51,7 @@ const scoreDOM = document.getElementById("score");
 const resultDOM = document.getElementById("result-container");
 const pauseBtn     = document.getElementById("pause-btn");
 const pauseOverlay = document.getElementById("pause-overlay");
+const muteBtn      = document.getElementById("mute-btn");
 
 const renderer = Renderer();
 // Animation loop chưa start — sẽ được bật sau khi chọn nhân vật
@@ -59,6 +64,16 @@ document.querySelector("#retry")?.addEventListener("click", initializeGame);
 document.getElementById("resume-btn")?.addEventListener("click", resumeGame);
 document.getElementById("pause-btn")?.addEventListener("click", pauseGame);
 document.getElementById("home-btn")?.addEventListener("click", goHome);
+
+// Nút tắt/bật âm thanh trong pause menu.
+// toggleMute() đổi trạng thái, trả về true nếu đang tắt.
+muteBtn?.addEventListener("click", () => {
+  const muted = toggleMute();
+  if (muteBtn) {
+    muteBtn.textContent = muted ? "✕ ÂM THANH: TẮT" : "♪ ÂM THANH: BẬT";
+    muteBtn.classList.toggle("muted", muted);
+  }
+});
 
 // Escape toggle pause — chỉ hoạt động khi game đang chạy (không phải game over)
 globalThis.addEventListener("keydown", (e) => {
@@ -101,9 +116,14 @@ function goHome() {
 function initializeGame() {
   gameState.isOver   = false;
   gameState.isPaused = false;
+  gameState.coinBonus = 0; // reset điểm xu về 0 mỗi lần chơi mới
   initializePlayer();
+  // initializeCoins() phải gọi TRƯỚC initializeMap() vì addRows() bên trong
+  // sẽ gọi spawnCoinsForRow() ngay lập tức — nếu clear sau sẽ xóa hết xu vừa tạo.
+  initializeCoins();
   initializeMap();
   initializePondPlatforms(); // reset bệ về vị trí ban đầu khi Retry
+  spawnPondCoins(platformData); // spawn xu trên ~50% bệ hồ sen
   playBgm(); // phát BGM từ đầu mỗi lần bắt đầu/retry
   pauseBtn?.classList.remove("hidden"); // hiện nút pause khi game bắt đầu
 
@@ -273,6 +293,17 @@ function animate() {
     animatePond();   // di chuyển bệ hồ sen trái/phải mỗi frame
     animatePlayer();
     hitTest();
+    animateCoins();  // xoay + bob đồng xu
+
+    // Thu thập xu: so sánh vị trí player với từng xu mỗi frame.
+    // collectCoins trả về số xu thu được → nhân 5 cộng vào coinBonus.
+    const collected = collectCoins(player.position.x, player.position.y);
+    if (collected > 0) {
+      gameState.coinBonus += collected * 5;
+      // Cập nhật HUD score ngay lập tức (không chờ stepCompleted).
+      if (scoreDOM)
+        scoreDOM.innerText = (Math.max(0, position.currentRow - START_ROW) + gameState.coinBonus).toString();
+    }
   }
 
   // Camera follow luôn chạy (kể cả game over) để không bị giật khi Retry.

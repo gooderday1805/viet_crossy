@@ -138,8 +138,9 @@ export function stepCompleted() {
    // Add new rows if the player is running out of them
   if (position.currentRow > rows.length - 10) addRows();
 
-  // Score tính từ START_ROW để đếm cả tiến trình qua hồ/chùa.
-  // currentRow - START_ROW = số hàng đã vượt qua từ đầu game (min = 0 khi đứng yên).
+  // Score = hàng đã vượt qua + coinBonus (điểm thưởng từ thu thập xu).
+  // currentRow - START_ROW = số hàng từ đầu game (min = 0 khi đứng yên).
   const scoreDOM = document.getElementById("score");
-  if (scoreDOM) scoreDOM.innerText = Math.max(0, position.currentRow - START_ROW).toString();
+  if (scoreDOM)
+    scoreDOM.innerText = (Math.max(0, position.currentRow - START_ROW) + gameState.coinBonus).toString();
 }

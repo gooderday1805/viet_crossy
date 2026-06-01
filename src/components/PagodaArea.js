@@ -238,7 +238,7 @@ export function createPagodaArea() {
   });
   const sign = new THREE.Mesh(new THREE.BoxGeometry(40, 2, 10), signMat);
   sign.position.set(0, -27, 97); // Y=-27: mặt trước gian thờ (52/2+1=27)
-  sign.rotation.x = Math.PI / 2;
+  sign.rotation.x = Math.PI;
   sign.castShadow = true;
   sign.receiveShadow = true;
   shrineGroup.add(sign);

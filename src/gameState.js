@@ -5,4 +5,7 @@
 export const gameState = {
   isOver: false,
   isPaused: false,
+  // Điểm thưởng tích lũy từ việc thu thập xu (+5 mỗi xu).
+  // Tách riêng khỏi điểm hàng để dễ reset và hiển thị.
+  coinBonus: 0,
 };
