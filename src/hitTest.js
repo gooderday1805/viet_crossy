@@ -68,7 +68,8 @@ export function hitTest() {
   const row = rows[position.currentRow - 1];
   if (!row) return;
 
-  if (row.type === "car" || row.type === "truck") {
+  // suv và taxi cũng là phương tiện — AABB collision giống car/truck
+  if (row.type === "car" || row.type === "truck" || row.type === "suv" || row.type === "taxi") {
     // AABB (Axis-Aligned Bounding Box): hộp bao không xoay, tính trong
     // world space từ toàn bộ geometry + transform của object và các con.
     // setFromObject() duyệt cây con → bounding box bao phủ cả xe lẫn bánh.

@@ -4,6 +4,9 @@ import { Road } from "./Road";
 import { Tree } from "./Tree";
 import { Car } from "./Car";
 import { Truck } from "./Truck";
+import { SUV } from "./SUV";
+import { Taxi } from "./Taxi";
+import { Building } from "./Building";
 import { createPagodaArea } from "./PagodaArea";
 import { generateRows } from "../utilities/generateRows";
 import { spawnCoinsForRow } from "../coins";
@@ -92,7 +95,7 @@ export const map = new THREE.Group();
 export function initializeMap() {
   metadata.length = 0;
   map.remove(...map.children);
-  
+
   // Mở rộng grass đến row -13 để phủ toàn bộ khu vực chùa mở rộng
   for (let rowIndex = 0; rowIndex >= -13; rowIndex--) {
     const grass = Grass(rowIndex);
@@ -108,9 +111,12 @@ export function initializeMap() {
 }
 
 export function addRows() {
-  const newMetadata = generateRows(20);
-
+  // startIndex phải lấy TRƯỚC khi push để biết số hàng đã có.
+  // Sau đó truyền vào generateRows để các hàng mới biết mình ở "độ sâu" bao nhiêu
+  // → quyết định xem có sinh nội dung đô thị (urban) hay không.
   const startIndex = metadata.length;
+  const newMetadata = generateRows(20, startIndex);
+
   metadata.push(...newMetadata);
   // Chỉ lặp qua newMetadata (20 row mới) — KHÔNG phải toàn bộ metadata.
   // Nếu dùng metadata.forEach: mỗi lần addRows() lần 2+ sẽ tạo mesh trùng
@@ -121,18 +127,28 @@ export function addRows() {
 
     if (rowData.type === "forest") {
       const row = Grass(rowIndex);
-
       rowData.trees.forEach(({ tileIndex, height }) => {
         const tree = Tree(tileIndex, height);
         row.add(tree);
       });
+      map.add(row);
+    }
 
+    // ── Hàng đô thị (urban): cỏ nền + tòa nhà thay cây ────────────────────
+    // Khái niệm CG — Environment Progression:
+    //   Sau khoảng 30 hàng, forest row được thay bởi urban row để tạo
+    //   cảm giác game ngày càng khó và môi trường thay đổi (rừng → phố).
+    if (rowData.type === "urban") {
+      const row = Grass(rowIndex); // nền cỏ làm vỉa hè
+      rowData.buildings.forEach(({ tileIndex, height }) => {
+        const building = Building(tileIndex, height);
+        row.add(building);
+      });
       map.add(row);
     }
 
     if (rowData.type === "car") {
       const row = Road(rowIndex);
-
       rowData.vehicles.forEach((vehicle) => {
         const car = Car(
           vehicle.initialTileIndex,
@@ -142,15 +158,45 @@ export function addRows() {
         vehicle.ref = car;
         row.add(car);
       });
-
       map.add(row);
-      // Spawn xu ngẫu nhiên trên lane ô tô (40% xác suất, tile không bị xe chiếm)
+      // Spawn xu ngẫu nhiên trên lane ô tô (25% xác suất)
+      spawnCoinsForRow(rowData, rowIndex);
+    }
+
+    // ── Lane SUV ──────────────────────────────────────────────────────────
+    if (rowData.type === "suv") {
+      const row = Road(rowIndex);
+      rowData.vehicles.forEach((vehicle) => {
+        const suv = SUV(
+          vehicle.initialTileIndex,
+          rowData.direction,
+          vehicle.color
+        );
+        vehicle.ref = suv;
+        row.add(suv);
+      });
+      map.add(row);
+      spawnCoinsForRow(rowData, rowIndex);
+    }
+
+    // ── Lane Taxi ─────────────────────────────────────────────────────────
+    if (rowData.type === "taxi") {
+      const row = Road(rowIndex);
+      rowData.vehicles.forEach((vehicle) => {
+        const taxi = Taxi(
+          vehicle.initialTileIndex,
+          rowData.direction,
+          vehicle.color
+        );
+        vehicle.ref = taxi;
+        row.add(taxi);
+      });
+      map.add(row);
       spawnCoinsForRow(rowData, rowIndex);
     }
 
     if (rowData.type === "truck") {
       const row = Road(rowIndex);
-
       rowData.vehicles.forEach((vehicle) => {
         const truck = Truck(
           vehicle.initialTileIndex,
@@ -160,9 +206,8 @@ export function addRows() {
         vehicle.ref = truck;
         row.add(truck);
       });
-
       map.add(row);
-      // Spawn xu ngẫu nhiên trên lane xe tải (40% xác suất, tile không bị xe chiếm)
+      // Spawn xu ngẫu nhiên trên lane xe tải (25% xác suất)
       spawnCoinsForRow(rowData, rowIndex);
     }
   });

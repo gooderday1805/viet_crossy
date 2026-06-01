@@ -24,7 +24,9 @@ export function animateVehicles() {
   const delta = clock.getDelta();
 
   rows.forEach((rowData) => {
-    if (rowData.type !== "car" && rowData.type !== "truck") return;
+    // suv và taxi cùng dùng cơ chế di chuyển giống car/truck (wrap-around trên trục X)
+    if (rowData.type !== "car" && rowData.type !== "truck" &&
+        rowData.type !== "suv" && rowData.type !== "taxi") return;
 
     // Biên wrap: 2 tile ngoài map để xe biến mất trước khi teleport
     const beginningOfRow = (minTileIndex - 2) * tileSize;

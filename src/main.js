@@ -26,8 +26,12 @@ import pandaModelUrl   from "./models/animal-panda.glb?url";
 import penguinModelUrl from "./models/animal-penguin.glb?url";
 import pigModelUrl     from "./models/animal-pig.glb?url";
 import tigerModelUrl   from "./models/animal-tiger.glb?url";
+// GLB xe cộ — SUV và Taxi
+import suvUrl  from "./models/suv.glb?url";
+import taxiUrl from "./models/taxi.glb?url";
 // Texture dùng chung cho tất cả model (palette màu dạng atlas)
 import colormapUrl from "./Textures/colormap.png?url";
+import { vehicleModelCache } from "./utilities/vehicleModels";
 import { getCoins, isUnlocked, purchaseCharacter } from "./shopState";
 
 const scene = new THREE.Scene();
@@ -190,6 +194,95 @@ scene.add(gridHelper);
 const CAMERA_Y_OFFSET = -380;
 
 // ============================================================
+// VEHICLE MODEL LOADING
+// ============================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// loadVehicleModels — tải GLB xe cộ, xử lý transform, lưu vào vehicleModelCache.
+//
+// Khái niệm CG — Coordinate Conversion (Y-up → Z-up):
+//   GLTF dùng hệ tọa độ Y-up (tiêu chuẩn OpenGL). Game dùng Z-up.
+//   rotation.x = -π/2 chuyển đổi: Y_gltf → -Z_game, Z_gltf → Y_game.
+//
+// Khái niệm CG — AABB (Axis-Aligned Bounding Box) để auto-scale:
+//   Box3.setFromObject() duyệt toàn bộ cây mesh → tính hộp bao nhỏ nhất.
+//   size = getSize() → chiều dài lớn nhất → scale = targetLength / maxDim.
+//   Kết quả: mọi xe GLB đều có kích thước đồng nhất với block car (≈60 units).
+//
+// Rotation mũi xe:
+//   rotation.z = π/2 → mũi xe quay về +X (hướng chạy mặc định khi direction=true).
+//   Nếu xe chạy ngược (mũi về -X), đổi rotation.z = -π/2.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Load song song SUV + Taxi GLB, xử lý rotation/scale/position, lưu vào cache.
+ * @param {GLTFLoader} loader - Instance GLTFLoader dùng chung với nhân vật.
+ */
+async function loadVehicleModels(loader) {
+  const configs = [
+    { key: "suv",  url: suvUrl,  targetLength: 65 },
+    { key: "taxi", url: taxiUrl, targetLength: 60 },
+  ];
+
+  // Load colormap atlas — cùng texture dùng cho nhân vật, áp khi model không có texture riêng
+  // colormap.flipY=false: GLTF UV gốc tọa độ từ trên-trái, Three.js mặc định lật Y → tắt để khớp
+  const colormap = await new THREE.TextureLoader().loadAsync(colormapUrl);
+  colormap.flipY = false;
+  colormap.colorSpace = THREE.SRGBColorSpace;
+
+  await Promise.allSettled(
+    configs.map(async ({ key, url, targetLength }) => {
+      try {
+        const gltf = await loader.loadAsync(url);
+        const root = gltf.scene;
+
+        // Bước 1 — Chuyển hệ tọa độ GLTF Y-up → game Z-up
+        // +π/2 (không phải -π/2): GLTF +Y (trên) → game +Z (trên) — xe nằm đúng chiều.
+        // -π/2 sẽ map GLTF +Y → game -Z (dưới) → xe lộn ngược / đứng thẳng.
+        root.rotation.x = Math.PI / 2;
+        // Bước 2 — Quay mũi xe về +X (hướng di chuyển mặc định, direction=true)
+        // Sau rotation.x=+π/2: GLTF+Z → game -Y. Cần -Y → +X: rotation.z = +π/2
+        // Nếu xe vẫn quay ngược chiều (mũi về -X): đổi rotation.z = -Math.PI / 2
+        root.rotation.y = Math.PI / 2;
+
+        // Bước 3 — Cập nhật matrix để Box3.setFromObject đo đúng sau khi xoay
+        root.updateMatrixWorld(true);
+
+        // Bước 4 — Scale để chiều dài lớn nhất ≈ targetLength (giống block car)
+        const box  = new THREE.Box3().setFromObject(root);
+        const size = box.getSize(new THREE.Vector3());
+        const scale = targetLength / Math.max(size.x, size.y, size.z);
+        root.scale.setScalar(scale);
+
+        // Bước 5 — Tính lại AABB sau scale, đặt đáy model ngay trên mặt đường (z=3)
+        root.updateMatrixWorld(true);
+        const scaledBox = new THREE.Box3().setFromObject(root);
+        root.position.z = 3 - scaledBox.min.z;
+
+        // Bước 6 — Áp MeshLambertMaterial + colormap atlas + shadow
+        // existingMap: texture đã nhúng trong GLB (ưu tiên dùng) → ngược lại fallback colormap
+        root.traverse((child) => {
+          if (!child.isMesh) return;
+          child.castShadow    = true;
+          child.receiveShadow = true;
+          const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+          const existingMap = (mat?.map instanceof THREE.Texture) ? mat.map : null;
+          child.material = new THREE.MeshLambertMaterial({
+            map: existingMap ?? colormap,
+            flatShading: true,
+          });
+        });
+
+        vehicleModelCache[key] = root;
+        console.log(`[VehicleModels] Đã load: ${key}`);
+      } catch (e) {
+        console.warn(`[VehicleModels] Không load được ${key} — dùng fallback block:`, e);
+      }
+    })
+  );
+}
+
+// ============================================================
 // CHARACTER SELECT
 // ============================================================
 
@@ -212,11 +305,15 @@ async function setupCharacterSelect() {
   colormap.flipY = false;
   colormap.colorSpace = THREE.SRGBColorSpace;
 
-  // Load song song tất cả model — allSettled không throw dù có model fail
+  // Load song song: nhân vật + xe cộ (GLB vehicle models)
+  // Promise.allSettled không throw dù có model fail → game vẫn chạy với fallback
   const entries   = Object.entries(MODEL_URLS);
-  const results   = await Promise.allSettled(entries.map(([, url]) => loader.loadAsync(url)));
+  const [charResults] = await Promise.all([
+    Promise.allSettled(entries.map(([, url]) => loader.loadAsync(url))),
+    loadVehicleModels(loader),
+  ]);
 
-  results.forEach((result, i) => {
+  charResults.forEach((result, i) => {
     const key = entries[i][0];
     if (result.status === "rejected") {
       console.warn(`[CharSelect] Không load được model: ${key}`, result.reason);

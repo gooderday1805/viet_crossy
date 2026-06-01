@@ -68,13 +68,23 @@ export function endsUpInValidPosition(currentPosition, moves) {
     return false;
   }
 
-  // ── 4. Cây trong forest rows (đường xe cộ) ───────────────────────────────
+  // ── 4. Cây trong forest rows ──────────────────────────────────────────────
   // rows[] chỉ có metadata đường xe (row 1+). Optional chaining (?.) tránh crash
   // khi finalRow là undefined (row âm hoặc chưa sinh).
   const finalRow = rows[finalPosition.rowIndex - 1];
   if (
     finalRow?.type === "forest" &&
     finalRow.trees.some((tree) => tree.tileIndex === finalPosition.tileIndex)
+  ) {
+    return false;
+  }
+
+  // ── 5. Tòa nhà trong urban rows ───────────────────────────────────────────
+  // Urban row dùng cùng cơ chế chặn như forest (tile-based, không cần AABB).
+  // Buildings cao hơn cây nhiều nhưng kiểm tra collision vẫn đủ qua tileIndex.
+  if (
+    finalRow?.type === "urban" &&
+    finalRow.buildings.some((b) => b.tileIndex === finalPosition.tileIndex)
   ) {
     return false;
   }
