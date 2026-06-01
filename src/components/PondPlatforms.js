@@ -51,6 +51,8 @@ function makePlatform(x, rowY) {
     new THREE.MeshLambertMaterial({ color: 0xa9cce3, flatShading: true })
   );
   top.position.z = 12.5;
+  top.castShadow = true;
+  top.receiveShadow = true;
   g.add(top);
 
   return g;
