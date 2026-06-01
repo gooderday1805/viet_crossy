@@ -79,12 +79,27 @@ export function endsUpInValidPosition(currentPosition, moves) {
     return false;
   }
 
-  // ── 5. Tòa nhà trong urban rows ───────────────────────────────────────────
+  // ── 5. Tòa nhà + cây vỉa hè trong urban rows ─────────────────────────────
   // Urban row dùng cùng cơ chế chặn như forest (tile-based, không cần AABB).
   // Buildings cao hơn cây nhiều nhưng kiểm tra collision vẫn đủ qua tileIndex.
+  // trees (cây vỉa hè) cũng chặn player — được sinh thêm vào urban metadata.
   if (
     finalRow?.type === "urban" &&
-    finalRow.buildings.some((b) => b.tileIndex === finalPosition.tileIndex)
+    (
+      finalRow.buildings.some((b) => b.tileIndex === finalPosition.tileIndex) ||
+      finalRow.trees?.some((t) => t.tileIndex === finalPosition.tileIndex)
+    )
+  ) {
+    return false;
+  }
+
+  // ── 6. Xe hàng rong trong vendor rows ────────────────────────────────────
+  // Vendor carts là static obstacle (như cây/nhà) — player không thể đi qua.
+  // Kiểm tra tileIndex của từng xe đẩy (buffer ±2 đã xử lý trong generateRows,
+  // nên ở đây chỉ cần check tileIndex chính xác tâm xe).
+  if (
+    finalRow?.type === "vendor" &&
+    finalRow.carts.some((c) => c.tileIndex === finalPosition.tileIndex)
   ) {
     return false;
   }

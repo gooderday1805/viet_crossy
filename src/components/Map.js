@@ -8,6 +8,10 @@ import { SUV } from "./SUV";
 import { Taxi } from "./Taxi";
 import { Building } from "./Building";
 import { createPagodaArea } from "./PagodaArea";
+import { Xichlo } from "./Xichlo";
+import { BanhMiCart } from "./BanhMiCart";
+import { HuTieuCart } from "./HuTieuCart";
+import { SugarcaneCart } from "./SugarcaneCart";
 import { generateRows } from "../utilities/generateRows";
 import { spawnCoinsForRow } from "../coins";
 
@@ -71,7 +75,7 @@ export const metadata = [
   {
     type: "car",
     direction: false,
-    speed:220,
+    speed: 220,
     vehicles: [
       { initialTileIndex: -4, color: 0xbdb638 },
       { initialTileIndex: -1, color: 0x78b14b },
@@ -125,6 +129,7 @@ export function addRows() {
   newMetadata.forEach((rowData, index) => {
     const rowIndex = startIndex + index + 1;
 
+    // ── Hàng rừng/cỏ: cây xanh ─────────────────────────────────────────────
     if (rowData.type === "forest") {
       const row = Grass(rowIndex);
       rowData.trees.forEach(({ tileIndex, height }) => {
@@ -134,15 +139,38 @@ export function addRows() {
       map.add(row);
     }
 
-    // ── Hàng đô thị (urban): cỏ nền + tòa nhà thay cây ────────────────────
+    // ── Hàng đô thị (urban): tòa nhà + cây vỉa hè ─────────────────────────
     // Khái niệm CG — Environment Progression:
-    //   Sau khoảng 30 hàng, forest row được thay bởi urban row để tạo
-    //   cảm giác game ngày càng khó và môi trường thay đổi (rừng → phố).
+    //   Sau khoảng 15 hàng (giảm từ 30), forest row được thay bởi urban row
+    //   để tạo cảm giác game ngày càng khó và môi trường thay đổi (rừng → phố).
+    //   Cây vỉa hè (trees) được render xen kẽ tòa nhà để mềm mại hơn đô thị bê tông.
     if (rowData.type === "urban") {
       const row = Grass(rowIndex); // nền cỏ làm vỉa hè
       rowData.buildings.forEach(({ tileIndex, height }) => {
         const building = Building(tileIndex, height);
         row.add(building);
+      });
+      // Cây vỉa hè xen kẽ tòa nhà — tạo đô thị VN thực tế hơn
+      rowData.trees?.forEach(({ tileIndex, height }) => {
+        const tree = Tree(tileIndex, height);
+        row.add(tree);
+      });
+      map.add(row);
+    }
+
+    // ── Hàng xe hàng rong (vendor): bánh mì / hủ tiếu / nước mía ──────────
+    // Khái niệm CG — Static Obstacle vs Dynamic Obstacle:
+    //   Vendor carts là static obstacle (không di chuyển), như cây/tòa nhà.
+    //   Player không thể đi qua (endsUpInValidPosition kiểm tra tileIndex).
+    //   Khác với xe cộ (dynamic): hitTest.js dùng AABB liên tục để phát hiện va chạm.
+    if (rowData.type === "vendor") {
+      const row = Grass(rowIndex);
+      rowData.carts.forEach(({ tileIndex, cartType, direction }) => {
+        let cart;
+        if (cartType === "banhmi")       cart = BanhMiCart(tileIndex, direction);
+        else if (cartType === "hutieu")  cart = HuTieuCart(tileIndex, direction);
+        else                             cart = SugarcaneCart(tileIndex, direction);
+        row.add(cart);
       });
       map.add(row);
     }
@@ -208,6 +236,22 @@ export function addRows() {
       });
       map.add(row);
       // Spawn xu ngẫu nhiên trên lane xe tải (25% xác suất)
+      spawnCoinsForRow(rowData, rowIndex);
+    }
+
+    // ── Lane Xích lô ──────────────────────────────────────────────────────
+    // Khái niệm CG — Vehicle Lane:
+    //   Xích lô chạy trên Road (nền đường), cùng cơ chế wrap-around X với car/truck.
+    //   Tốc độ thấp hơn (60–100) → tạo "làn xe chậm" đặc trưng đô thị cũ VN.
+    //   ref được gán để animateVehicles.js cập nhật position.x mỗi frame.
+    if (rowData.type === "xichlo") {
+      const row = Road(rowIndex);
+      rowData.vehicles.forEach((vehicle) => {
+        const xichlo = Xichlo(vehicle.initialTileIndex, rowData.direction);
+        vehicle.ref = xichlo;
+        row.add(xichlo);
+      });
+      map.add(row);
       spawnCoinsForRow(rowData, rowIndex);
     }
   });

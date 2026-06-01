@@ -24,9 +24,11 @@ export function animateVehicles() {
   const delta = clock.getDelta();
 
   rows.forEach((rowData) => {
-    // suv và taxi cùng dùng cơ chế di chuyển giống car/truck (wrap-around trên trục X)
+    // suv, taxi, xichlo cùng dùng cơ chế di chuyển giống car/truck (wrap-around trên trục X)
+    // xichlo: phương tiện chậm nhưng vẫn di chuyển theo chiều direction
     if (rowData.type !== "car" && rowData.type !== "truck" &&
-        rowData.type !== "suv" && rowData.type !== "taxi") return;
+        rowData.type !== "suv" && rowData.type !== "taxi" &&
+        rowData.type !== "xichlo") return;
 
     // Biên wrap: 2 tile ngoài map để xe biến mất trước khi teleport
     const beginningOfRow = (minTileIndex - 2) * tileSize;

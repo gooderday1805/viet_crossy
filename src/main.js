@@ -33,6 +33,7 @@ import taxiUrl from "./models/taxi.glb?url";
 import colormapUrl from "./Textures/colormap.png?url";
 import { vehicleModelCache } from "./utilities/vehicleModels";
 import { getCoins, isUnlocked, purchaseCharacter } from "./shopState";
+import { createRain, animateRain } from "./components/Rain";
 
 const scene = new THREE.Scene();
 // scene.background là màu fill toàn màn hình khi không có geometry nào che
@@ -50,6 +51,48 @@ scene.add(coinsGroup);
 
 const ambientLight = new THREE.AmbientLight();
 scene.add(ambientLight);
+
+// ── Weather / Night-Rain System ───────────────────────────────────────────────
+// Khái niệm CG — Atmosphere Effect:
+//   Thay đổi màu nền (scene.background) + cường độ ánh sáng tạo cảm giác ngày/đêm.
+//   Particle system (Rain) mô phỏng mưa — kích hoạt sau khi đạt ngưỡng điểm.
+//   NIGHT_RAIN_SCORE: ngưỡng score để chuyển sang đêm mưa (score = row + coinBonus).
+const NIGHT_RAIN_SCORE = 30;
+const SKY_DAY   = new THREE.Color(0xbfd7ea); // xanh trời ban ngày
+const SKY_NIGHT = new THREE.Color(0x0d1b2a); // xanh đen đêm mưa
+
+let rainSystem    = null;  // { group, clock } trả về từ createRain()
+let isNightMode   = false; // đã kích hoạt đêm mưa chưa
+
+/**
+ * Kích hoạt chế độ đêm mưa: đổi bầu trời, giảm ánh sáng, spawn hạt mưa.
+ * Chỉ chạy một lần mỗi game session (guard isNightMode).
+ */
+function activateNightRain() {
+  if (isNightMode) return;
+  isNightMode = true;
+  scene.background = SKY_NIGHT;
+  // Giảm ambient xuống còn 20% — tạo không khí đêm tối
+  ambientLight.color.set(0x4466aa);
+  ambientLight.intensity = 0.2;
+  rainSystem = createRain();
+  scene.add(rainSystem.group);
+}
+
+/**
+ * Tắt đêm mưa, khôi phục trạng thái ngày — gọi khi Retry hoặc về Home.
+ */
+function deactivateNightRain() {
+  if (!isNightMode) return;
+  isNightMode = false;
+  scene.background = SKY_DAY;
+  ambientLight.color.set(0xffffff);
+  ambientLight.intensity = 1;
+  if (rainSystem) {
+    scene.remove(rainSystem.group);
+    rainSystem = null;
+  }
+}
 
 const dirLight = DirectionalLight();
 dirLight.target = player;
@@ -141,6 +184,7 @@ function initializeGame() {
   gameState.isOver   = false;
   gameState.isPaused = false;
   gameState.coinBonus = 0; // reset điểm xu về 0 mỗi lần chơi mới
+  deactivateNightRain(); // reset thời tiết về ngày khi chơi lại
   initializePlayer();
   // initializeCoins() phải gọi TRƯỚC initializeMap() vì addRows() bên trong
   // sẽ gọi spawnCoinsForRow() ngay lập tức — nếu clear sau sẽ xóa hết xu vừa tạo.
@@ -524,6 +568,21 @@ function animate() {
       if (scoreDOM)
         scoreDOM.innerText = (Math.max(0, position.currentRow - START_ROW) + gameState.coinBonus).toString();
     }
+  }
+
+  // ── Night-Rain: kích hoạt khi đạt ngưỡng điểm, tắt khi game over ────────
+  // Khái niệm CG — Real-time Environment Change:
+  //   Thay đổi scene.background + ánh sáng + particle system tại runtime
+  //   mà không cần reload scene — Three.js cập nhật trực tiếp trên GPU frame tiếp theo.
+  if (!gameState.isOver && !gameState.isPaused) {
+    const score = Math.max(0, position.currentRow - START_ROW) + gameState.coinBonus;
+    if (!isNightMode && score >= NIGHT_RAIN_SCORE) activateNightRain();
+  }
+
+  // Cập nhật hạt mưa mỗi frame — rainGroup.position.y theo player để mưa luôn hiển thị
+  if (rainSystem && isNightMode) {
+    rainSystem.group.position.y = player.position.y;
+    animateRain(rainSystem);
   }
 
   // Camera follow luôn chạy (kể cả game over) để không bị giật khi Retry.

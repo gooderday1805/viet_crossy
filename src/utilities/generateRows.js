@@ -13,16 +13,21 @@ import { minTileIndex, maxTileIndex } from "../constants";
 // Tách biệt data và presentation = mô hình MVC cơ bản trong game dev.
 //
 // Hai vùng nội dung theo rowIndex tuyệt đối:
-//   Normal zone (row < 30) : car, truck, suv, taxi (ít), forest nhiều
-//   Urban zone  (row ≥ 30) : thêm type "urban" (tòa nhà), suv/taxi tần suất cao hơn
+//   Normal zone (row < 15) : car, truck, suv, taxi, forest nhiều, xichlo lẻ
+//   Urban zone  (row ≥ 15) : thêm type "urban" (tòa nhà), "vendor" (hàng quán),
+//                            xichlo thường xuyên hơn, suv/taxi tần suất cao
 //
-// Type phân bố (dùng mảng có trọng số để tránh thêm hàm random phức tạp):
-//   Normal: ["car","car","truck","suv","taxi","forest","forest"] → car+forest ưu tiên
-//   Urban:  ["car","suv","taxi","truck","urban","urban","forest"] → urban xuất hiện ~2/7
+// Type phân bố (mảng có trọng số — weighted random):
+//   Normal: car 2/8, truck 1/8, suv 1/8, taxi 1/8, forest 2/8, xichlo 1/8
+//   Urban:  car 2/9, suv 1/9, taxi 1/9, truck 1/9, urban 2/9, forest 1/9,
+//           vendor 1/9 (xe hàng rong), xichlo 1/9 (xuất hiện nhiều hơn)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NORMAL_TYPES = ["car", "car", "truck", "suv", "taxi", "forest", "forest"];
-const URBAN_TYPES  = ["car", "suv", "taxi", "truck", "urban", "urban", "forest"];
+const NORMAL_TYPES = ["car", "car", "truck", "suv", "taxi", "forest", "forest", "xichlo"];
+const URBAN_TYPES  = ["car", "car", "suv", "taxi", "truck", "urban", "urban", "forest", "vendor", "xichlo"];
+
+// Loại xe hàng rong — random mỗi lần sinh vendor row
+const CART_TYPES = ["banhmi", "hutieu", "nuocmia"];
 
 /**
  * Sinh metadata cho `amount` hàng map mới.
@@ -44,14 +49,18 @@ export function generateRows(amount, startIndex = 0) {
  * @param {number} absoluteIndex - Chỉ số hàng tuyệt đối trong toàn bộ game session.
  */
 function generateRow(absoluteIndex) {
-  const isUrbanZone = absoluteIndex >= 30;
+  // Đô thị hóa bắt đầu sớm hơn (row 15 thay vì 30)
+  // → tòa nhà + hàng quán xuất hiện ngay sau vài màn đầu để gameplay phong phú hơn
+  const isUrbanZone = absoluteIndex >= 15;
   const type = randomElement(isUrbanZone ? URBAN_TYPES : NORMAL_TYPES);
 
-  if (type === "car")    return generateCarLaneMetadata();
-  if (type === "suv")    return generateSUVLaneMetadata();
-  if (type === "taxi")   return generateTaxiLaneMetadata();
-  if (type === "truck")  return generateTruckLaneMetadata();
-  if (type === "urban")  return generateUrbanMetadata();
+  if (type === "car")     return generateCarLaneMetadata();
+  if (type === "suv")     return generateSUVLaneMetadata();
+  if (type === "taxi")    return generateTaxiLaneMetadata();
+  if (type === "truck")   return generateTruckLaneMetadata();
+  if (type === "urban")   return generateUrbanMetadata();
+  if (type === "vendor")  return generateVendorMetadata();
+  if (type === "xichlo")  return generateXichloLaneMetadata();
   return generateForestMetadata();
 }
 
@@ -80,8 +89,9 @@ function generateForestMetadata() {
 }
 
 /**
- * Sinh metadata hàng đô thị (tòa nhà): 3–4 tòa nhà, buffer ±1 tile.
+ * Sinh metadata hàng đô thị (tòa nhà): 3–4 tòa nhà + 1–2 cây xen kẽ.
  * Buildings cao từ 60–160 units → đa dạng đường chân trời thành phố.
+ * Cây xen kẽ tạo cảm giác vỉa hè đô thị VN (không phải đô thị bê tông thuần túy).
  */
 function generateUrbanMetadata() {
   const occupiedTiles = new Set();
@@ -101,7 +111,83 @@ function generateUrbanMetadata() {
     return { tileIndex, height: randomElement([60, 80, 100, 130, 160]) };
   });
 
-  return { type: "urban", buildings };
+  // Thêm 1–2 cây vỉa hè vào urban row — không đặt trùng tile đã có nhà
+  const treeOccupied = new Set(occupiedTiles);
+  const treeCount = randomElement([1, 2]);
+  const trees = [];
+  for (let i = 0; i < treeCount; i++) {
+    let tileIndex;
+    let tries = 0;
+    do {
+      tileIndex = THREE.MathUtils.randInt(minTileIndex, maxTileIndex);
+      tries++;
+    } while (treeOccupied.has(tileIndex) && tries < 20);
+
+    if (tries < 20) {
+      // Buffer ±1 tile để cây không đứng sát nhà
+      treeOccupied.add(tileIndex - 1);
+      treeOccupied.add(tileIndex);
+      treeOccupied.add(tileIndex + 1);
+      trees.push({ tileIndex, height: randomElement([20, 30, 45]) });
+    }
+  }
+
+  return { type: "urban", buildings, trees };
+}
+
+/**
+ * Sinh metadata hàng xe hàng rong (vendor): 1–2 xe đẩy tĩnh.
+ * Xe hàng rong là chướng ngại vật không di chuyển — player phải đi vòng.
+ * Loại xe ngẫu nhiên: bánh mì, hủ tiếu, nước mía.
+ */
+function generateVendorMetadata() {
+  const occupiedTiles = new Set();
+  const count = randomElement([1, 2]);
+
+  const carts = Array.from({ length: count }, () => {
+    let tileIndex;
+    let tries = 0;
+    do {
+      tileIndex = THREE.MathUtils.randInt(minTileIndex, maxTileIndex);
+      tries++;
+    } while (occupiedTiles.has(tileIndex) && tries < 20);
+
+    // Buffer ±2 tile: xe đẩy rộng 65 units ≈ 1.5 tile — cần khoảng cách đủ rộng
+    for (let d = -2; d <= 2; d++) occupiedTiles.add(tileIndex + d);
+
+    return {
+      tileIndex,
+      cartType: randomElement(CART_TYPES),   // loại xe: banhmi / hutieu / nuocmia
+      direction: Math.random() > 0.5,        // hướng xe nhìn (lật Y hoặc không)
+    };
+  });
+
+  return { type: "vendor", carts };
+}
+
+/**
+ * Sinh metadata lane xích lô: 1–2 xích lô, chạy chậm hơn xe hơi.
+ * Xích lô di chuyển theo trục X (như car/truck) nhưng tốc độ thấp hơn
+ * → "phương tiện chậm" đặc trưng đô thị cũ, tạo đa dạng obstacle.
+ */
+function generateXichloLaneMetadata() {
+  const direction = randomElement([true, false]);
+  const speed     = randomElement([60, 80, 100]);   // chậm hơn car (125–220)
+
+  const occupiedTiles = new Set();
+  const vehicles = Array.from({ length: randomElement([1, 2]) }, () => {
+    let initialTileIndex;
+    do {
+      initialTileIndex = THREE.MathUtils.randInt(minTileIndex, maxTileIndex);
+    } while (occupiedTiles.has(initialTileIndex));
+
+    // Buffer ±2 tile vì xích lô dài ~55 units ≈ 1.3 tile
+    for (let d = -2; d <= 2; d++) occupiedTiles.add(initialTileIndex + d);
+
+    return { initialTileIndex };
+  });
+
+  return { type: "xichlo", direction, speed, vehicles };
 }
 
 /**

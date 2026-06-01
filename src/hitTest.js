@@ -68,8 +68,10 @@ export function hitTest() {
   const row = rows[position.currentRow - 1];
   if (!row) return;
 
-  // suv và taxi cũng là phương tiện — AABB collision giống car/truck
-  if (row.type === "car" || row.type === "truck" || row.type === "suv" || row.type === "taxi") {
+  // suv, taxi, xichlo cũng là phương tiện — AABB collision giống car/truck
+  // xichlo di chuyển chậm nhưng vẫn cần check va chạm liên tục (dynamic obstacle)
+  if (row.type === "car" || row.type === "truck" || row.type === "suv" ||
+      row.type === "taxi" || row.type === "xichlo") {
     // AABB (Axis-Aligned Bounding Box): hộp bao không xoay, tính trong
     // world space từ toàn bộ geometry + transform của object và các con.
     // setFromObject() duyệt cây con → bounding box bao phủ cả xe lẫn bánh.
