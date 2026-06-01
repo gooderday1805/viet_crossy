@@ -16,8 +16,10 @@ import { tileSize, minTileIndex, maxTileIndex } from "./constants";
 export const coinsGroup = new THREE.Group();
 
 // Danh sách metadata xu (dùng trong animateCoins + collectCoins).
-const roadCoins = []; // { mesh, worldX, worldY, collected }
-const pondCoins = []; // { mesh, platformEntry, collected }
+// roadCoins: mảng xu trên lane đường — mỗi phần tử gồm mesh, worldX, worldY, collected
+const roadCoins = [];
+// pondCoins: mảng xu trên bệ hồ sen — mỗi phần tử gồm mesh, platformEntry, collected
+const pondCoins = [];
 
 // Clock nội bộ cho animation (tách riêng để không ảnh hưởng clock của module khác).
 const clock = new THREE.Clock();
@@ -45,7 +47,7 @@ export function initializeCoins() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// spawnCoinsForRow: spawn 0 hoặc 1 xu cho một lane đường xe/xe tải (40% xác suất).
+// spawnCoinsForRow: spawn 0 hoặc 1 xu cho một lane đường xe/xe tải (25% xác suất).
 // Chọn tile ngẫu nhiên không bị phương tiện chiếm (buffer ±1 tile).
 //
 // Khái niệm CG:

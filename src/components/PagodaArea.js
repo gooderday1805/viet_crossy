@@ -229,7 +229,7 @@ export function createPagodaArea() {
 
   // Biển tên chùa (Sign with Canvas Texture)
   // BoxGeometry dẹt làm bảng, map texture Canvas lên mặt trước.
-  // sign.rotation.x = π/2 để biển đứng song song trục Y (hướng về phía camera).
+  // sign.rotation.x = π (180°) để lật biển hướng mặt texture ra phía người chơi.
   const signTex = createSignTexture();
   const signMat = new THREE.MeshLambertMaterial({
     map: signTex,

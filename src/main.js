@@ -184,7 +184,6 @@ scene.add(gridHelper);
 // ============================================================
 // END DEBUG HELPERS
 // ============================================================
-console.log(scene.children);
 
 // Khoảng cách cố định từ camera đến player theo trục Y.
 // Camera luôn ở phía sau player 380 đơn vị (≈ 9 tile) để nhìn thấy đủ cảnh phía trước.

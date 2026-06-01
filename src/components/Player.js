@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { metadata as rows, addRows } from "./Map";
 import { endsUpInValidPosition } from "../utilities/endsUpInValidPosition";
 import { gameState } from "../gameState";
+import { tileSize } from "../constants";
 
 export const player = Player();
 
@@ -52,7 +53,7 @@ export const START_ROW = -10;
 
 export function initializePlayer() {
   player.position.x = 0;
-  player.position.y = START_ROW * 42;
+  player.position.y = START_ROW * tileSize;
   // Z gốc = mặt đất tại row -10 (sân đón tiếp chùa, top = 5).
   // animatePlayer.js sẽ lerp giá trị này sang terrain kế tiếp khi nhảy.
   player.position.z = 5;
@@ -65,8 +66,18 @@ export function initializePlayer() {
   movesQueue.length = 0;
 }
 
+/**
+ * Thêm hướng di chuyển vào hàng đợi nếu vị trí đích hợp lệ.
+ *
+ * Guard isOver + isPaused tại đây — không tại event listener — để mọi nguồn
+ * input (keyboard, button, touch) đều được lọc tại một điểm duy nhất.
+ * Nếu chỉ guard ở input handler, một nguồn input mới có thể vô tình bypass.
+ *
+ * isPaused phải được kiểm tra vì animatePlayer() bị tắt khi pause nhưng
+ * movesQueue vẫn nhận push → khi resume, toàn bộ queue bùng phát cùng lúc.
+ */
 export function queueMove(direction) {
-  if (gameState.isOver) return;
+  if (gameState.isOver || gameState.isPaused) return;
 
   const isValidMove = endsUpInValidPosition(
     {

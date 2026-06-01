@@ -76,7 +76,11 @@ export function hitTest() {
     playerBoundingBox.setFromObject(player);
 
     row.vehicles.forEach(({ ref }) => {
-      if (!ref) throw new Error("Vehicle reference is missing");
+      // ref được gán khi Map.js tạo mesh; undefined = bug sinh row (bỏ qua an toàn)
+      if (!ref) {
+        console.warn("[hitTest] Vehicle ref missing — collision skipped.");
+        return;
+      }
 
       const vehicleBoundingBox = new THREE.Box3();
       vehicleBoundingBox.setFromObject(ref);
