@@ -4,7 +4,7 @@ export function Camera() {
   const aspect = window.innerWidth / window.innerHeight;
 
   const camera = new THREE.PerspectiveCamera(
-    29, // zoom hơn FOV 40-45
+    24, // zoom hơn FOV 40-45
     aspect,
     1,
     3000
@@ -14,7 +14,7 @@ export function Camera() {
   camera.up.set(0, 0, 1);
 
   // Góc nhìn chéo kiểu Crossy Road
-  camera.position.set(250, -600, 280);
+  camera.position.set(280, -600, 280);
 
   // Spawn player của bạn đang gần y = -240
   camera.lookAt(70, -240, 20);
