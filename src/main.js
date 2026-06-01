@@ -18,10 +18,17 @@ import "./collectUserInput";
 import "./style.css";
 
 // Vite xử lý import ?url — trả về đường dẫn public đúng khi build
-import catModelUrl from "./models/animal-cat.glb?url";
-import dogModelUrl from "./models/animal-dog.glb?url";
-// Texture dùng chung cho cả 2 model (palette màu dạng atlas)
+import catModelUrl     from "./models/animal-cat.glb?url";
+import dogModelUrl     from "./models/animal-dog.glb?url";
+import cowModelUrl     from "./models/animal-cow.glb?url";
+import monkeyModelUrl  from "./models/animal-monkey.glb?url";
+import pandaModelUrl   from "./models/animal-panda.glb?url";
+import penguinModelUrl from "./models/animal-penguin.glb?url";
+import pigModelUrl     from "./models/animal-pig.glb?url";
+import tigerModelUrl   from "./models/animal-tiger.glb?url";
+// Texture dùng chung cho tất cả model (palette màu dạng atlas)
 import colormapUrl from "./Textures/colormap.png?url";
+import { getCoins, isUnlocked, purchaseCharacter } from "./shopState";
 
 const scene = new THREE.Scene();
 // scene.background là màu fill toàn màn hình khi không có geometry nào che
@@ -55,9 +62,21 @@ const muteBtn      = document.getElementById("mute-btn");
 
 const renderer = Renderer();
 // Animation loop chưa start — sẽ được bật sau khi chọn nhân vật
+const CHARACTERS = [
+  { key: "cat",     name: "Mèo",      desc: "Linh hoạt · Nhanh nhẹn",  price: 0   },
+  { key: "dog",     name: "Chó",      desc: "Trung thành · Dũng cảm",  price: 0   },
+  { key: "pig",     name: "Heo",      desc: "Đáng yêu · Vui vẻ",       price: 50  },
+  { key: "penguin", name: "Cánh Cụt", desc: "Bình thản · Bền bỉ",      price: 75  },
+  { key: "cow",     name: "Bò",       desc: "Mạnh mẽ · Chắc chắn",     price: 75  },
+  { key: "monkey",  name: "Khỉ",      desc: "Tinh nghịch · Lanh lợi",  price: 100 },
+  { key: "panda",   name: "Gấu Trúc", desc: "Điềm tĩnh · Dễ thương",   price: 100 },
+  { key: "tiger",   name: "Hổ",       desc: "Dũng mãnh · Uy lực",      price: 150 },
+];
+let modelSceneMap  = {}; // key → THREE.Group (scene gốc của từng GLB)
+let pendingPurchase = null; // nhân vật đang chờ xác nhận mua
 
 // Game chưa start ngay — chờ người dùng chọn nhân vật
-// top-level await: module chờ load xong 2 GLB mới chạy tiếp
+// top-level await: module chờ load xong GLB mới chạy tiếp
 await setupCharacterSelect();
 
 document.querySelector("#retry")?.addEventListener("click", initializeGame);
@@ -109,8 +128,9 @@ function goHome() {
   pauseOverlay?.classList.add("hidden");
   pauseBtn?.classList.add("hidden");
   if (resultDOM) resultDOM.style.visibility = "hidden";
-  // Hiện lại màn hình chọn nhân vật — card listener đã được gán, click sẽ restart game
+  // Hiện lại màn hình chọn nhân vật, cập nhật ví + trạng thái khóa mới nhất
   document.getElementById("character-select").style.display = "flex";
+  refreshCharacterSelect();
 }
 
 function initializeGame() {
@@ -174,85 +194,192 @@ const CAMERA_Y_OFFSET = -380;
 // CHARACTER SELECT
 // ============================================================
 
-/**
- * Load cả 2 GLB trước, render preview xoay 3D trong thẻ chọn nhân vật.
- * Khi người dùng click, gán model vào player rồi khởi động game loop.
- */
 async function setupCharacterSelect() {
   const loader = new GLTFLoader();
 
-  // Load texture và 2 model song song
-  const [colormap, catGltf, dogGltf] = await Promise.all([
-    new THREE.TextureLoader().loadAsync(colormapUrl),
-    loader.loadAsync(catModelUrl),
-    loader.loadAsync(dogModelUrl),
-  ]);
+  const MODEL_URLS = {
+    cat:     catModelUrl,
+    dog:     dogModelUrl,
+    cow:     cowModelUrl,
+    monkey:  monkeyModelUrl,
+    panda:   pandaModelUrl,
+    penguin: penguinModelUrl,
+    pig:     pigModelUrl,
+    tiger:   tigerModelUrl,
+  };
 
-  // GLTF dùng Y-up, Three.js mặc định cũng Y-up nhưng game này Z-up
-  // → xoay -90° quanh X để trục Y (cao) của model chuyển thành Z (cao) của game
-  colormap.flipY = false;         // GLTF UV gốc tọa độ ở góc dưới-trái → không lật
-  colormap.colorSpace = THREE.SRGBColorSpace; // đảm bảo màu sắc đúng gamma
+  // Load texture trước — cần thiết để áp vào model
+  const colormap = await new THREE.TextureLoader().loadAsync(colormapUrl);
+  colormap.flipY = false;
+  colormap.colorSpace = THREE.SRGBColorSpace;
 
-  // Áp texture và sửa trục cho cả 2 model
-  [catGltf.scene, dogGltf.scene].forEach((root) => {
-    root.rotation.x = -Math.PI / 2;  // GLTF Y-up → game Z-up
-    root.rotation.z = Math.PI;      // mặt model quay về +Y (hướng forward của game)
+  // Load song song tất cả model — allSettled không throw dù có model fail
+  const entries   = Object.entries(MODEL_URLS);
+  const results   = await Promise.allSettled(entries.map(([, url]) => loader.loadAsync(url)));
 
-    // Gán colormap vào từng mesh — GLB này dùng texture ngoài nên phải gán thủ công
+  results.forEach((result, i) => {
+    const key = entries[i][0];
+    if (result.status === "rejected") {
+      console.warn(`[CharSelect] Không load được model: ${key}`, result.reason);
+      return;
+    }
+    const root = result.value.scene;
+    root.rotation.x = -Math.PI / 2; // GLTF Y-up → game Z-up
+    root.rotation.z = Math.PI;      // mặt model quay về +Y (hướng forward)
     root.traverse((child) => {
       if (!child.isMesh) return;
+      // material có thể là array (multi-material mesh) → lấy phần tử đầu tiên
+      const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+      // Nếu mesh đã có texture riêng (embedded) → giữ, ngược lại dùng colormap atlas
+      const existingMap = (mat?.map instanceof THREE.Texture) ? mat.map : null;
+      // MeshLambertMaterial: Lambertian diffuse — phù hợp low-poly flat-shaded
       child.material = new THREE.MeshLambertMaterial({
-        map: colormap,
+        map: existingMap ?? colormap,
         flatShading: true,
       });
     });
+    modelSceneMap[key] = root;
   });
 
-  // Dùng clone() cho preview để scene gốc còn nguyên khi gán vào game
-  createPreview("preview-cat", catGltf.scene.clone());
-  createPreview("preview-dog", dogGltf.scene.clone());
-
-  const modelMap = { cat: catGltf.scene, dog: dogGltf.scene };
-
-  document.querySelectorAll(".cs-card").forEach((card) => {
-    card.addEventListener("click", () => {
-      setPlayerModel(modelMap[card.dataset.model]);
-      document.getElementById("character-select").style.display = "none";
-      initializeGame();
-      renderer.setAnimationLoop(animate); // bắt đầu game loop
-    });
+  // Tạo card chỉ cho các model load thành công
+  const cardsContainer = document.querySelector(".cs-cards");
+  CHARACTERS.forEach((char) => {
+    if (!modelSceneMap[char.key]) return; // model này load lỗi → bỏ qua
+    const card = buildCharacterCard(char);
+    cardsContainer.appendChild(card);
+    // clone() để preview dùng bản sao — scene gốc không bị auto-fit modify
+    createPreview(`preview-${char.key}`, modelSceneMap[char.key].clone());
   });
+
+  setupBuyModal();
+  refreshCharacterSelect();
 }
 
 /**
- * Tạo mini Three.js scene render GLB model xoay trong ô preview.
- * Auto-fit: tính BoundingBox để scale & center model vừa khung.
- *
- * Khái niệm CG:
- *  - BoundingBox (AABB): hộp bao nhỏ nhất chứa toàn bộ geometry theo trục XYZ
- *  - setScalar(s): đặt scale.x = scale.y = scale.z = s (uniform scale)
+ * Tạo DOM element <button> cho một nhân vật.
+ * Nếu bị khóa: thêm overlay 🔒; click sẽ mở modal mua thay vì start game.
+ */
+function buildCharacterCard(char) {
+  const card = document.createElement("button");
+  card.className = "cs-card";
+  card.dataset.model = char.key;
+
+  // Khung preview — canvas Three.js sẽ được append vào đây bởi createPreview()
+  const previewEl = document.createElement("div");
+  previewEl.className = "cs-preview";
+  previewEl.id = `preview-${char.key}`;
+  card.appendChild(previewEl);
+
+  // Phần thông tin phía dưới
+  const info = document.createElement("div");
+  info.className = "cs-card-info";
+  info.innerHTML = `
+    <span class="cs-name">${char.name}</span>
+    <span class="cs-desc">${char.desc}</span>
+    ${char.price > 0
+      ? `<span class="cs-price" id="cs-price-${char.key}">🪙 ${char.price}</span>`
+      : `<span class="cs-free">MIỄN PHÍ</span>`}
+  `;
+  card.appendChild(info);
+
+  // Overlay khóa — ẩn/hiện dựa theo isUnlocked() mỗi lần refreshCharacterSelect()
+  if (char.price > 0) {
+    const lockOverlay = document.createElement("div");
+    lockOverlay.className = "cs-lock-overlay";
+    lockOverlay.id = `lock-${char.key}`;
+    lockOverlay.innerHTML = `<span class="cs-lock-icon">🔒</span>`;
+    card.appendChild(lockOverlay);
+  }
+
+  card.addEventListener("click", () => {
+    if (char.price > 0 && !isUnlocked(char.key)) {
+      openBuyModal(char);
+    } else {
+      selectCharacter(char.key);
+    }
+  });
+
+  return card;
+}
+
+/** Gán model vào player, ẩn character select, khởi động game. */
+function selectCharacter(key) {
+  setPlayerModel(modelSceneMap[key]);
+  document.getElementById("character-select").style.display = "none";
+  initializeGame();
+  renderer.setAnimationLoop(animate);
+}
+
+/** Cập nhật wallet display và trạng thái khóa của các card. */
+function refreshCharacterSelect() {
+  const walletEl = document.getElementById("cs-wallet-amount");
+  if (walletEl) walletEl.textContent = String(getCoins());
+
+  CHARACTERS.forEach((char) => {
+    if (char.price === 0) return;
+    const lockEl = document.getElementById(`lock-${char.key}`);
+    if (lockEl) lockEl.style.display = isUnlocked(char.key) ? "none" : "flex";
+  });
+}
+
+// ── Buy Modal ────────────────────────────────────────────────
+
+/** Gán listener cho các nút trong buy modal (gọi 1 lần khi setup). */
+function setupBuyModal() {
+  document.getElementById("buy-modal-confirm")?.addEventListener("click", () => {
+    if (!pendingPurchase) return;
+    const { key, price } = pendingPurchase;
+    const ok = purchaseCharacter(key, price);
+    if (!ok) {
+      document.getElementById("buy-modal-error")?.classList.remove("hidden");
+      document.getElementById("buy-modal-wallet").textContent = String(getCoins());
+      return;
+    }
+    closeBuyModal();
+    refreshCharacterSelect();
+    selectCharacter(key);
+  });
+
+  document.getElementById("buy-modal-cancel")?.addEventListener("click", closeBuyModal);
+}
+
+function openBuyModal(char) {
+  pendingPurchase = char;
+  document.getElementById("buy-modal-name").textContent  = char.name;
+  document.getElementById("buy-modal-price").textContent = String(char.price);
+  document.getElementById("buy-modal-wallet").textContent = String(getCoins());
+  document.getElementById("buy-modal-error")?.classList.add("hidden");
+  document.getElementById("buy-modal")?.classList.remove("hidden");
+}
+
+function closeBuyModal() {
+  pendingPurchase = null;
+  document.getElementById("buy-modal")?.classList.add("hidden");
+}
+
+/**
+ * Tạo mini Three.js scene render GLB model trong ô preview.
+ * Auto-fit dùng AABB (Axis-Aligned Bounding Box): hộp bao nhỏ nhất theo trục XYZ
+ * để tính scale đồng đều (uniform scale) và căn giữa model trong khung.
  */
 function createPreview(containerId, model) {
   const container = document.getElementById(containerId);
-  const W = 200, H = 200;
+  const W = 150, H = 150;
 
   const previewScene = new THREE.Scene();
-  // Nền tối khớp với màu #character-select để preview trông liền mạch với card
   previewScene.background = new THREE.Color(0x0a0e14);
 
-  // Camera vuông (aspect = 1) nhìn chéo từ góc trên-trái kiểu isometric
+  // Camera vuông (aspect = 1), góc nhìn isometric nhẹ
   const previewCam = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
   previewCam.up.set(0, 0, 1); // Z-up giống game chính
 
-  // --- Auto-fit model vào khung preview ---
-  // Box3.setFromObject duyệt toàn bộ children, tính AABB bao quanh model
+  // Auto-fit: tính AABB → uniform scale + dịch về gốc tọa độ
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   const fitScale = 2 / maxDim; // chuẩn hóa về ~2 units
 
-  // Uniform scale + dịch về gốc (0,0,0), đặt đáy mô hình tại z=0
   model.scale.setScalar(fitScale);
   model.position.set(
     -center.x * fitScale,
@@ -262,12 +389,9 @@ function createPreview(containerId, model) {
   model.traverse((c) => { if (c.isMesh) c.castShadow = true; });
   previewScene.add(model);
 
-  // Camera nhìn vào mặt trước model (+Y là forward sau khi fix rotation)
-  // Đặt camera ở phía +Y, hơi cao và lệch phải — góc nhìn isometric nhẹ
   previewCam.position.set(1, 3.5, 2);
   previewCam.lookAt(0, 0, 0.8);
 
-  // Ambient + Directional Light tạo chiều sâu cho model
   previewScene.add(new THREE.AmbientLight(0xffffff, 1.2));
   const dir = new THREE.DirectionalLight(0xffffff, 2.5);
   dir.position.set(2, -3, 5);
@@ -278,7 +402,7 @@ function createPreview(containerId, model) {
   previewRenderer.setSize(W, H);
   container.appendChild(previewRenderer.domElement);
 
-  // Render tĩnh — chỉ cần vẽ 1 lần, không cần animation loop
+  // Render tĩnh — 1 lần duy nhất, không cần animation loop
   previewRenderer.render(previewScene, previewCam);
 }
 

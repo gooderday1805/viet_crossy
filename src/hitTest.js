@@ -4,6 +4,7 @@ import { player, position, movesQueue, START_ROW } from "./components/Player";
 import { gameState } from "./gameState";
 import { platformData, PLATFORM_HALF } from "./components/PondPlatforms";
 import { stopBgm, playGameOver } from "./audio";
+import { addCoins } from "./shopState";
 
 // Hồ sen trải dài từ row -9 (gần chùa) đến row -4 (gần sân chùa).
 const POND_ROW_MIN = -9;
@@ -21,6 +22,7 @@ const finalScoreDOM = document.getElementById("final-score");
 // Score chỉ tính từ row 0 trở lên (khu đường xe), trong hồ = 0.
 function triggerGameOver() {
   gameState.isOver = true;
+  addCoins(gameState.coinBonus);
   stopBgm();
   playGameOver();
   if (!resultDOM || !finalScoreDOM) return;

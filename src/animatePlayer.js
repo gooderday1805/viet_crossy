@@ -66,6 +66,9 @@ export function animatePlayer() {
   // Once a step has ended
   if (progress >= 1) {
     stepCompleted(); // cập nhật position.currentRow trước
+    player.position.z          = getGroundZ(position.currentRow); // mặt đất đúng
+    player.children[0].position.z = 0;                            // arc về 0 tuyệt đối
+
     snapToPlatformCenter(); // sau đó snap về tâm bệ (dùng currentRow mới)
     moveClock.stop();
     stepStartX = null;

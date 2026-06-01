@@ -101,10 +101,27 @@ body {
   letter-spacing: 4px;
 }
 
-/* ── Cards layout ── */
-.cs-cards {
+/* ── Wallet display ── */
+.cs-wallet {
   display: flex;
-  gap: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: rgba(245, 197, 24, 0.1);
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  border-radius: 20px;
+  font-size: 0.7em;
+  color: #f5c518;
+  letter-spacing: 2px;
+}
+.cs-wallet-icon { font-size: 1.1em; }
+.cs-wallet-unit { color: rgba(245, 197, 24, 0.65); }
+
+/* ── Cards layout — grid 4 cột ── */
+.cs-cards {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 18px;
 }
 
 /* Mỗi card là <button> để nhận focus/keyboard */
@@ -115,13 +132,11 @@ body {
   align-items: stretch;
   padding: 0;
   background: rgba(255, 255, 255, 0.04);
-  /* border mỏng 1px — tinh tế hơn 3px */
   border: 1px solid rgba(245, 197, 24, 0.28);
-  border-radius: 18px;
+  border-radius: 16px;
   cursor: pointer;
   font-family: inherit;
   overflow: hidden;
-  /* Box-shadow ngoài + inset highlight ở cạnh trên để tạo chiều sâu */
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -133,9 +148,8 @@ body {
 
 .cs-card:hover,
 .cs-card:focus {
-  transform: translateY(-10px) scale(1.04);
+  transform: translateY(-8px) scale(1.04);
   border-color: rgba(245, 197, 24, 0.9);
-  /* Glow vàng lan ra ngoài */
   box-shadow:
     0 20px 50px rgba(0, 0, 0, 0.6),
     0 0 28px rgba(245, 197, 24, 0.25),
@@ -145,8 +159,8 @@ body {
 
 /* Ô preview: three.js canvas render vào đây */
 .cs-preview {
-  width: 200px;
-  height: 200px;
+  width: 150px;
+  height: 150px;
   display: block;
   background: rgba(0, 0, 0, 0.35);
   overflow: hidden;
@@ -162,28 +176,59 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px 20px 18px;
+  gap: 5px;
+  padding: 10px 12px 12px;
   background: rgba(0, 0, 0, 0.25);
-  /* Đường kẻ mờ ngăn cách preview và info */
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .cs-name {
-  font-size: 0.85em;
+  font-size: 0.65em;
   color: #ffffff;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
 }
 
-/* Mô tả ngắn — dùng system-ui để dễ đọc, không dùng pixel font */
+/* Mô tả ngắn — dùng system-ui để dễ đọc hơn pixel font */
 .cs-desc {
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.42);
-  letter-spacing: 0.5px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.3px;
+  text-align: center;
 }
 
-/* Hint nhấp nháy nhẹ để kéo sự chú ý */
+/* Giá xu — hiển thị dưới mô tả khi chưa mở khóa */
+.cs-price {
+  font-size: 0.55em;
+  color: #f5c518;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* Badge "miễn phí" cho cat và dog */
+.cs-free {
+  font-size: 0.5em;
+  color: #2ecc71;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* Overlay khóa — phủ toàn bộ preview, ẩn khi đã mở khóa */
+.cs-lock-overlay {
+  position: absolute;
+  inset: 0 0 auto 0;  /* chỉ phủ phần preview (150px), không che info */
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  pointer-events: none; /* click xuyên qua overlay vào card button */
+}
+
+.cs-lock-icon { font-size: 2em; }
+
+/* Hint nhấp nháy nhẹ */
 .cs-hint {
   margin: 0;
   font-size: 0.48em;
@@ -196,6 +241,97 @@ body {
   0%, 100% { opacity: 0.38; }
   50%       { opacity: 0.72; }
 }
+
+/* =============================================
+   BUY MODAL
+   ============================================= */
+#buy-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+#buy-modal.hidden { display: none; }
+
+#buy-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 36px 48px;
+  background: linear-gradient(160deg, rgba(14, 21, 32, 0.98) 0%, rgba(8, 13, 22, 0.98) 100%);
+  border: 1px solid rgba(245, 197, 24, 0.4);
+  border-radius: 20px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(245, 197, 24, 0.1);
+}
+
+#buy-modal-name {
+  margin: 0;
+  font-size: 1em;
+  color: #f5c518;
+  letter-spacing: 4px;
+  text-shadow: 0 0 16px rgba(245, 197, 24, 0.4);
+}
+
+.buy-modal-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  font-size: 0.6em;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 2px;
+}
+.buy-modal-info p { margin: 0; }
+.buy-modal-info strong { color: #f5c518; }
+
+#buy-modal-error {
+  margin: 0;
+  font-size: 0.55em;
+  color: #e74c3c;
+  letter-spacing: 1px;
+}
+#buy-modal-error.hidden { display: none; }
+
+.buy-modal-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.buy-btn-confirm,
+.buy-btn-cancel {
+  padding: 12px 28px;
+  font-family: inherit;
+  font-size: 0.6em;
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.buy-btn-confirm:hover,
+.buy-btn-cancel:hover { transform: translateY(-3px); }
+
+.buy-btn-confirm {
+  background: linear-gradient(135deg, #b7950b, #f5c518);
+  color: #0a0e14;
+  box-shadow: 0 4px 18px rgba(245, 197, 24, 0.35);
+}
+.buy-btn-confirm:hover { box-shadow: 0 8px 24px rgba(245, 197, 24, 0.55); }
+
+.buy-btn-cancel {
+  background: linear-gradient(135deg, #4a235a, #7d3c98);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(125, 60, 152, 0.3);
+}
+.buy-btn-cancel:hover { box-shadow: 0 8px 24px rgba(125, 60, 152, 0.5); }
 
 /* =============================================
    PAUSE BUTTON

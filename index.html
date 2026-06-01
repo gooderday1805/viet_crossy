@@ -13,23 +13,31 @@
         <p class="cs-subtitle">CHỌN NHÂN VẬT</p>
         <h1 class="cs-title">VietCrossy</h1>
       </div>
-      <div class="cs-cards">
-        <button class="cs-card" data-model="cat">
-          <div class="cs-preview" id="preview-cat"></div>
-          <div class="cs-card-info">
-            <span class="cs-name">Mèo</span>
-            <span class="cs-desc">Linh hoạt · Nhanh nhẹn</span>
-          </div>
-        </button>
-        <button class="cs-card" data-model="dog">
-          <div class="cs-preview" id="preview-dog"></div>
-          <div class="cs-card-info">
-            <span class="cs-name">Chó</span>
-            <span class="cs-desc">Trung thành · Dũng cảm</span>
-          </div>
-        </button>
+      <!-- Ví xu — hiển thị tổng xu tích lũy từ localStorage -->
+      <div class="cs-wallet">
+        <span class="cs-wallet-icon">🪙</span>
+        <span id="cs-wallet-amount">0</span>
+        <span class="cs-wallet-unit"> xu</span>
       </div>
+      <!-- Cards được generate động bởi JS (8 nhân vật) -->
+      <div class="cs-cards"></div>
       <p class="cs-hint">▶ nhấn để bắt đầu ◀</p>
+    </div>
+
+    <!-- Modal xác nhận mua nhân vật — hiện khi click con bị khóa -->
+    <div id="buy-modal" class="hidden">
+      <div id="buy-dialog">
+        <h3 id="buy-modal-name">Nhân vật</h3>
+        <div class="buy-modal-info">
+          <p>Giá: <strong id="buy-modal-price"></strong> xu</p>
+          <p>Ví bạn: <strong id="buy-modal-wallet"></strong> xu</p>
+        </div>
+        <p id="buy-modal-error" class="hidden">❌ Không đủ xu!</p>
+        <div class="buy-modal-actions">
+          <button id="buy-modal-confirm" class="buy-btn-confirm">MUA</button>
+          <button id="buy-modal-cancel"  class="buy-btn-cancel">HỦY</button>
+        </div>
+      </div>
     </div>
 
     <canvas class="game"></canvas>

@@ -99,7 +99,9 @@ export function setPlayerModel(gltfScene) {
   const innerGroup = player.children[0];
   innerGroup.clear(); // xóa box body + cap cũ
 
-  // Tính AABB trước khi đặt scale — lấy kích thước gốc (đã có rotation từ prepareModel)
+  gltfScene.updateWorldMatrix(true, true);
+
+  // Tính AABB sau khi matrix đã cập nhật — lấy kích thước gốc (đã có rotation từ prepareModel)
   const box = new THREE.Box3().setFromObject(gltfScene);
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(...box.getSize(new THREE.Vector3()).toArray());
