@@ -139,7 +139,7 @@ export function Xichlo(initialTileIndex, direction) {
     new THREE.MeshLambertMaterial({ color: 0xe9c46a, flatShading: true })
   );
   hat.position.set(18, 0, 45);
-  hat.rotation.x = Math.PI;
+  hat.rotation.x = Math.PI / 2;
   xichlo.add(hat);
 
   // ── Bánh sau (2 bánh như xe đẩy) ─────────────────────────────────────────
