@@ -4,4 +4,5 @@
 // phản ánh sang main.js. Dùng object tránh vấn đề này (pass-by-reference).
 export const gameState = {
   isOver: false,
+  isPaused: false,
 };

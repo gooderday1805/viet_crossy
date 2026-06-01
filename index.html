@@ -33,6 +33,19 @@
     </div>
 
     <canvas class="game"></canvas>
+
+    <!-- Nút pause — hiện góc trên phải khi đang chơi -->
+    <button id="pause-btn" class="pause-btn hidden" aria-label="Tạm dừng">⏸</button>
+
+    <!-- Overlay tạm dừng -->
+    <div id="pause-overlay" class="hidden">
+      <div id="pause-menu">
+        <h2 class="pause-title">TẠM DỪNG</h2>
+        <button id="resume-btn" class="pause-action-btn">▶ TIẾP TỤC</button>
+        <button id="home-btn"   class="pause-action-btn pause-action-btn--home">⌂ VỀ TRANG CHỦ</button>
+      </div>
+    </div>
+
     <div id="controls">
       <div>
         <button id="forward">▲</button>

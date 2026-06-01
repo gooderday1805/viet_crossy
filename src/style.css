@@ -198,6 +198,103 @@ body {
 }
 
 /* =============================================
+   PAUSE BUTTON
+   ============================================= */
+.pause-btn {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  font-size: 1.2em;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.12s;
+}
+.pause-btn:hover { background: rgba(0, 0, 0, 0.7); transform: scale(1.08); }
+.pause-btn.hidden { display: none; }
+
+/* =============================================
+   PAUSE OVERLAY
+   ============================================= */
+#pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Kính mờ (backdrop-filter: blur) làm dịu cảnh game phía sau */
+  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.55);
+}
+#pause-overlay.hidden { display: none; }
+
+#pause-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 52px;
+  background:
+    linear-gradient(160deg, rgba(14, 21, 32, 0.97) 0%, rgba(8, 13, 22, 0.97) 100%);
+  border: 1px solid rgba(245, 197, 24, 0.35);
+  border-radius: 20px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(245, 197, 24, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.pause-title {
+  margin: 0 0 8px;
+  font-size: 1.3em;
+  color: #f5c518;
+  letter-spacing: 6px;
+  text-shadow: 0 0 18px rgba(245, 197, 24, 0.45);
+}
+
+.pause-action-btn {
+  width: 220px;
+  padding: 14px 0;
+  font-family: inherit;
+  font-size: 0.7em;
+  letter-spacing: 3px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  border: none;
+}
+.pause-action-btn:hover { transform: translateY(-3px); }
+
+/* Nút "Tiếp tục" — xanh lá nhạt */
+.pause-action-btn:not(.pause-action-btn--home) {
+  background: linear-gradient(135deg, #1e8449, #27ae60);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(39, 174, 96, 0.35);
+}
+.pause-action-btn:not(.pause-action-btn--home):hover {
+  box-shadow: 0 8px 24px rgba(39, 174, 96, 0.5);
+}
+
+/* Nút "Về Trang Chủ" — đỏ gạch */
+.pause-action-btn--home {
+  background: linear-gradient(135deg, #922b21, #c0392b);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(192, 57, 43, 0.35);
+}
+.pause-action-btn--home:hover {
+  box-shadow: 0 8px 24px rgba(192, 57, 43, 0.5);
+}
+
+/* =============================================
    RESULT CONTAINER
    ============================================= */
 #result-container {

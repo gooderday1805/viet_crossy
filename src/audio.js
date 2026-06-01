@@ -27,6 +27,16 @@ export function stopBgm() {
   bgm.pause();
 }
 
+// Tạm dừng BGM — giữ nguyên currentTime để resume chơi tiếp.
+export function pauseBgm() {
+  bgm.pause();
+}
+
+// Tiếp tục BGM từ chỗ tạm dừng.
+export function resumeBgm() {
+  bgm.play().catch(() => {});
+}
+
 // Phát tiếng nhảy mỗi lần nhân vật bắt đầu một bước.
 // currentTime = 0: reset về đầu để tiếng luôn phát đủ dù bấm liên tục.
 export function playJump() {

@@ -12,7 +12,7 @@ import { animatePond } from "./animatePond";
 import { hitTest } from "./hitTest";
 import { gameState } from "./gameState";
 import { createPondPlatforms, initializePondPlatforms } from "./components/PondPlatforms";
-import { playBgm } from "./audio";
+import { playBgm, pauseBgm, resumeBgm, stopBgm } from "./audio";
 import "./collectUserInput";
 import "./style.css";
 
@@ -45,6 +45,8 @@ scene.add(camera);
 
 const scoreDOM = document.getElementById("score");
 const resultDOM = document.getElementById("result-container");
+const pauseBtn     = document.getElementById("pause-btn");
+const pauseOverlay = document.getElementById("pause-overlay");
 
 const renderer = Renderer();
 // Animation loop chưa start — sẽ được bật sau khi chọn nhân vật
@@ -53,16 +55,57 @@ const renderer = Renderer();
 // top-level await: module chờ load xong 2 GLB mới chạy tiếp
 await setupCharacterSelect();
 
-document
-  .querySelector("#retry")
-  ?.addEventListener("click", initializeGame);
+document.querySelector("#retry")?.addEventListener("click", initializeGame);
+document.getElementById("resume-btn")?.addEventListener("click", resumeGame);
+document.getElementById("pause-btn")?.addEventListener("click", pauseGame);
+document.getElementById("home-btn")?.addEventListener("click", goHome);
+
+// Escape toggle pause — chỉ hoạt động khi game đang chạy (không phải game over)
+globalThis.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (gameState.isOver) return;
+  gameState.isPaused ? resumeGame() : pauseGame();
+});
+
+// ── Pause / Resume ────────────────────────────────────────────────────────────
+// pauseGame: đóng băng logic game, hiện overlay, dừng BGM.
+function pauseGame() {
+  gameState.isPaused = true;
+  pauseOverlay?.classList.remove("hidden");
+  pauseBtn?.classList.add("hidden");
+  pauseBgm();
+}
+
+// resumeGame: xoá overlay, tiếp tục BGM và game loop.
+function resumeGame() {
+  gameState.isPaused = false;
+  pauseOverlay?.classList.add("hidden");
+  pauseBtn?.classList.remove("hidden");
+  resumeBgm();
+}
+
+// goHome: dừng animation loop, tắt âm thanh, quay về màn hình chọn nhân vật.
+// setAnimationLoop(null): Three.js huỷ requestAnimationFrame nội bộ.
+function goHome() {
+  gameState.isPaused = false;
+  gameState.isOver   = false;
+  renderer.setAnimationLoop(null);
+  stopBgm();
+  pauseOverlay?.classList.add("hidden");
+  pauseBtn?.classList.add("hidden");
+  if (resultDOM) resultDOM.style.visibility = "hidden";
+  // Hiện lại màn hình chọn nhân vật — card listener đã được gán, click sẽ restart game
+  document.getElementById("character-select").style.display = "flex";
+}
 
 function initializeGame() {
-  gameState.isOver = false;
+  gameState.isOver   = false;
+  gameState.isPaused = false;
   initializePlayer();
   initializeMap();
   initializePondPlatforms(); // reset bệ về vị trí ban đầu khi Retry
   playBgm(); // phát BGM từ đầu mỗi lần bắt đầu/retry
+  pauseBtn?.classList.remove("hidden"); // hiện nút pause khi game bắt đầu
 
   if (scoreDOM) scoreDOM.innerText = "0";
   if (resultDOM) resultDOM.style.visibility = "hidden";
@@ -224,9 +267,8 @@ function createPreview(containerId, model) {
 // ============================================================
 
 function animate() {
-  // Khi game over: dừng toàn bộ logic (xe, player, collision).
-  // Vẫn gọi render để giữ "màn hình đóng băng" — player thấy cảnh lúc chết.
-  if (!gameState.isOver) {
+  // Dừng logic khi game over hoặc đang pause — vẫn render để giữ ảnh tĩnh.
+  if (!gameState.isOver && !gameState.isPaused) {
     animateVehicles();
     animatePond();   // di chuyển bệ hồ sen trái/phải mỗi frame
     animatePlayer();
