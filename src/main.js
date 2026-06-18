@@ -207,10 +207,10 @@ function initializeGame() {
 //   đỏ   = trục X (ngang)
 //   xanh lá = trục Y (tiến/lùi theo hàng map)
 //   xanh dương = trục Z (lên/xuống, hướng camera.up)
-const axesHelper = new THREE.AxesHelper(200);
-// Nâng lên z=2 để thoát khỏi mesh cỏ (foundation dày 3, từ z=-1.5 đến z=1.5)
-axesHelper.position.z = 2;
-scene.add(axesHelper);
+// const axesHelper = new THREE.AxesHelper(200);
+// // Nâng lên z=2 để thoát khỏi mesh cỏ (foundation dày 3, từ z=-1.5 đến z=1.5)
+// axesHelper.position.z = 2;
+// scene.add(axesHelper);
 
 // Lưới kẻ ô vuông khớp với cấu trúc tile của map:
 //   gridSize  = tilesPerRow * tileSize = 17 * 42 = 714 đơn vị
